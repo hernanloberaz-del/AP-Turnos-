@@ -25,16 +25,17 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // Función para verificar el rol en Firestore y redirigir según corresponda
+        // Función para verificar estrictamente el rol en Firestore y redirigir
         async function verificarRolYRedirigir(user) {
             try {
                 const userDoc = await db.collection("usuarios").doc(user.uid).get();
                 
+                // Verificamos si el documento existe Y si su rol es explícitamente "admin"
                 if (userDoc.exists && userDoc.data().rol === "admin") {
-                    // Es administrador -> Va al panel de control de admin
+                    // Es administrador -> Va al panel de control exclusivo de admin
                     window.location.href = "admin.html";
                 } else {
-                    // Es cliente común (o usuario nuevo) -> Va a la cartelera de turnos
+                    // Es cliente común o usuario nuevo que no está en la tabla de admins -> Va a la cartelera
                     window.location.href = "deportes.html";
                 }
             } catch (error) {
