@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>AP Turnos - Plataforma Deportiva</title>
+    <!-- SDK Modular de Firebase v10 (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; text-align: center;">
+
+    <div style="background: #1e1e1e; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); max-width: 500px; width: 100%;">
+        <h1 style="color: #27ae60; margin-top: 0; font-size: 32px;">AP Turnos</h1>
+        <p style="color: #aaa; font-size: 15px; margin-bottom: 35px;">Seleccioná qué deseás hacer para comenzar</p>
+
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- Opción 1: Reservar Turnos (Jugadores) -->
+            <button onclick="irAcceso('reservar')" style="background: #27ae60; color: white; border: none; padding: 18px; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#219653'" onmouseout="this.style.background='#27ae60'">
+                🎾 Reservar un Turno
+            </button>
+
+            <!-- Opción 2: Gestión / Clubes / Profes / Torneos (Dueños y Organizadores) -->
+            <button onclick="irAcceso('gestion')" style="background: #2d3748; color: white; border: 2px solid #4a5568; padding: 18px; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#4a5568'" onmouseout="this.style.background='#2d3748'">
+                ⚙️ Gestión / Clubes / Profes / Torneos
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Función que guarda el destino elegido y manda al login unificado (index.html)
+        function irAcceso(destino) {
+            localStorage.setItem("ap_destino_deseado", destino);
+            window.location.href = "index.html";
+        }
+    </script>
+</body>
+</html>
