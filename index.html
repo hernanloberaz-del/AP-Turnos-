@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <title>Acceso - AP Turnos</title>
     
-    <!-- SDK Modular de Firebase v10 -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, FacebookAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    <!-- SDK Modular de Firebase v10 (Compat para Firestore y Auth) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
+    <script>
         // Configuración real de tu proyecto AP Turnos
         const firebaseConfig = {
           apiKey: "AIzaSyBaIoJ6c7U1E_YGHDjuP3fXehqFOb-MqMY",
@@ -20,49 +21,74 @@
           measurementId: "G-K7DTFN97VJ"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
 
-        // 1. Login con Email y Contraseña
-        document.getElementById('btn-email').addEventListener('click', () => {
-            const email = document.getElementById('email').value;
-            const pass = document.getElementById('pass').value;
-            signInWithEmailAndPassword(auth, email, pass)
-                .then(result => console.log("Éxito Correo:", result.user))
-                .catch(error => alert("Error correo: " + error.message));
-        });
+        // Función para verificar el rol en Firestore y redirigir según corresponda
+        async function verificarRolYRedirigir(user) {
+            try {
+                const userDoc = await db.collection("usuarios").doc(user.uid).get();
+                
+                if (userDoc.exists && userDoc.data().rol === "admin") {
+                    // Es administrador -> Va al panel de control de admin
+                    window.location.href = "admin.html";
+                } else {
+                    // Es cliente común (o usuario nuevo) -> Va a la cartelera de turnos
+                    window.location.href = "deportes.html";
+                }
+            } catch (error) {
+                console.error("Error al verificar el rol:", error);
+                // Por seguridad si falla la lectura, mandamos al cliente común
+                window.location.href = "deportes.html";
+            }
+        }
 
-        // 2. Login con Google
-        document.getElementById('btn-google').addEventListener('click', () => {
-            const provider = new GoogleAuthProvider();
-            signInWithPopup(auth, provider)
-                .then(result => console.log("Éxito Google:", result.user))
-                .catch(error => alert("Error Google: " + error.message));
-        });
+        document.addEventListener("DOMContentLoaded", () => {
+            // 1. Login con Email y Contraseña
+            document.getElementById('btn-email').addEventListener('click', () => {
+                const email = document.getElementById('email').value;
+                const pass = document.getElementById('pass').value;
+                
+                auth.signInWithEmailAndPassword(email, pass)
+                    .then(result => verificarRolYRedirigir(result.user))
+                    .catch(error => alert("Error correo: " + error.message));
+            });
 
-        // 3. Login con Facebook
-        document.getElementById('btn-facebook').addEventListener('click', () => {
-            const provider = new FacebookAuthProvider();
-            signInWithPopup(auth, provider)
-                .then(result => console.log("Éxito Facebook:", result.user))
-                .catch(error => alert("Error Facebook: " + error.message));
+            // 2. Login con Google
+            document.getElementById('btn-google').addEventListener('click', () => {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                auth.signInWithPopup(provider)
+                    .then(result => verificarRolYRedirigir(result.user))
+                    .catch(error => alert("Error Google: " + error.message));
+            });
+
+            // 3. Login con Facebook
+            document.getElementById('btn-facebook').addEventListener('click', () => {
+                const provider = new firebase.auth.FacebookAuthProvider();
+                auth.signInWithPopup(provider)
+                    .then(result => verificarRolYRedirigir(result.user))
+                    .catch(error => alert("Error Facebook: " + error.message));
+            });
         });
     </script>
 </head>
-<body>
-    <h2>Ingreso a AP Turnos</h2>
-    
-    <div>
-        <input type="email" id="email" placeholder="Correo electrónico">
-        <input type="password" id="pass" placeholder="Contraseña">
-        <button id="btn-email">Entrar con Correo</button>
-    </div>
-    
-    <hr>
-    
-    <div>
-        <button id="btn-google">Entrar con Google</button>
-        <button id="btn-facebook">Entrar con Facebook</button>
+<body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f0f2f5;">
+    <div style="background: white; max-width: 400px; margin: 0 auto; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+        <h2>Ingreso a AP Turnos</h2>
+        
+        <div style="margin-bottom: 15px;">
+            <input type="email" id="email" placeholder="Correo electrónico" style="padding: 10px; width: 90%; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ccc;">
+            <input type="password" id="pass" placeholder="Contraseña" style="padding: 10px; width: 90%; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ccc;">
+            <button id="btn-email" style="padding: 10px 20px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; width: 95%;">Entrar con Correo</button>
+        </div>
+        
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        
+        <div>
+            <button id="btn-google" style="padding: 10px; width: 95%; margin-bottom: 10px; background: #db4437; color: white; border: none; border-radius: 5px; cursor: pointer;">Entrar con Google</button>
+            <button id="btn-facebook" style="padding: 10px; width: 95%; background: #3b5998; color: white; border: none; border-radius: 5px; cursor: pointer;">Entrar con Facebook</button>
+        </div>
     </div>
 </body>
 </html>
