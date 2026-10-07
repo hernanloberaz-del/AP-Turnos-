@@ -10,7 +10,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <script>
-        // Configuración de Firebase
         const firebaseConfig = {
           apiKey: "AIzaSyBaIoJ6c7U1E_YGHDjuP3fXehqFOb-MqMY",
           authDomain: "ap-turnos.firebaseapp.com",
@@ -34,15 +33,79 @@
                     window.location.href = "deportes.html";
                 } else {
                     document.getElementById("admin-email").innerText = user.email;
+                    cargarConfiguracionActual(user.uid);
+                    cargarReservasAdmin();
                 }
             } else {
-                // Si no hay sesión, al login
                 window.location.href = "índice.html";
             }
         });
 
+        // Cargar configuración existente en el formulario
+        async function cargarConfiguracionActual(uid) {
+            try {
+                const doc = await db.collection("negocios").doc(uid).get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    document.getElementById("tipo-negocio").value = data.tipo || "cancha";
+                    document.getElementById("deporte").value = data.deportePrincipal || "";
+                    document.getElementById("hora-apertura").value = data.apertura || "";
+                    document.getElementById("hora-cierre").value = data.cierre || "";
+                    document.getElementById("duracion-turno").value = data.duracionMinutos || "";
+                }
+            } catch (error) {
+                console.error("Error al cargar configuración:", error);
+            }
+        }
+
+        // Cargar la lista de reservas hechas por los clientes
+        async function cargarReservasAdmin() {
+            const contenedorReservas = document.getElementById("lista-reservas-admin");
+            contenedorReservas.innerHTML = "<p>Cargando reservas...</p>";
+
+            try {
+                const snapshot = await db.collection("turnos").orderBy("fechaReserva", "desc").get();
+
+                if (snapshot.empty) {
+                    contenedorReservas.innerHTML = "<p>No hay reservas registradas todavía.</p>";
+                    return;
+                }
+
+                let tablaHTML = `
+                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+                        <thead>
+                            <tr style="background: #2c3e50; color: white;">
+                                <th style="padding: 8px;">Cliente</th>
+                                <th style="padding: 8px;">Horario</th>
+                                <th style="padding: 8px;">Fecha</th>
+                                <th style="padding: 8px;">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                snapshot.forEach(doc => {
+                    const r = doc.data();
+                    tablaHTML += `
+                        <tr style="border-bottom: 1px solid #ddd;">
+                            <td style="padding: 8px;">${r.clienteEmail}</td>
+                            <td style="padding: 8px;">${r.horarioInicio} - ${r.horarioFin}</td>
+                            <td style="padding: 8px;">${r.fechaReserva}</td>
+                            <td style="padding: 8px; color: #27ae60; font-weight: bold;">${r.estado}</td>
+                        </tr>
+                    `;
+                });
+
+                tablaHTML += "</tbody></table>";
+                contenedorReservas.innerHTML = tablaHTML;
+
+            } catch (error) {
+                console.error("Error al cargar reservas:", error);
+                contenedorReservas.innerHTML = "<p>Error al obtener las reservas.</p>";
+            }
+        }
+
         document.addEventListener("DOMContentLoaded", () => {
-            // Botón de cerrar sesión
             document.getElementById("btn-salir").addEventListener("click", () => {
                 auth.signOut().then(() => {
                     window.location.href = "índice.html";
@@ -62,7 +125,6 @@
                 const duracionTurno = document.getElementById("duracion-turno").value;
 
                 try {
-                    // Guardamos la configuración en Firestore vinculada al ID del administrador
                     await db.collection("negocios").doc(user.uid).set({
                         tipo: tipoNegocio,
                         deportePrincipal: deporte,
@@ -81,15 +143,15 @@
         });
     </script>
 </head>
-<body style="font-family: Arial, sans-serif; text-align: center; padding: 30px; background-color: #f0f2f5;">
-    <div style="background: white; max-width: 600px; margin: 0 auto; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+<body style="font-family: Arial, sans-serif; text-align: center; padding: 20px; background-color: #f0f2f5;">
+    <div style="background: white; max-width: 700px; margin: 0 auto; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
         <h2>Panel de Administración ⚙️</h2>
         <p>Bienvenido, <span id="admin-email" style="font-weight: bold;">Cargando...</span></p>
         
         <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
 
-        <h3>Configuración de tu Negocio / Horarios</h3>
-        <form id="form-config" style="text-align: left; display: flex; flex-direction: column; gap: 15px;">
+        <h3 style="text-align: left; color: #2c3e50;">Configuración de Horarios</h3>
+        <form id="form-config" style="text-align: left; display: flex; flex-direction: column; gap: 12px;">
             <div>
                 <label style="font-weight: bold;">Tipo de Servicio:</label><br>
                 <select id="tipo-negocio" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
@@ -119,8 +181,15 @@
                 <input type="number" id="duracion-turno" placeholder="Ej: 60 o 90" required style="width: 97%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
             </div>
 
-            <button type="submit" style="padding: 10px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 10px;">Guardar Configuración</button>
+            <button type="submit" style="padding: 10px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 5px;">Guardar Configuración</button>
         </form>
+
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+
+        <h3 style="text-align: left; color: #2c3e50;">Listado de Reservas de Clientes</h3>
+        <div id="lista-reservas-admin" style="max-height: 250px; overflow-y: auto; text-align: left; border: 1px solid #eee; padding: 10px; border-radius: 5px;">
+            <!-- Las reservas se cargan dinámicamente desde Firestore -->
+        </div>
 
         <br>
         <button id="btn-salir" style="padding: 8px 15px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer;">Cerrar Sesión</button>
