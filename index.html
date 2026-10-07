@@ -10,7 +10,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <script>
-        // Configuración real de tu proyecto AP Turnos
         const firebaseConfig = {
           apiKey: "AIzaSyBaIoJ6c7U1E_YGHDjuP3fXehqFOb-MqMY",
           authDomain: "ap-turnos.firebaseapp.com",
@@ -25,31 +24,36 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // Función para verificar estrictamente el rol en Firestore y redirigir
-        async function verificarRolYRedirigir(user) {
+        // 🧠 Cerebro de Enrutamiento Inteligente
+        async function enrutarUsuario(user) {
             try {
+                const destinoElegido = localStorage.getItem("ap_destino_deseado") || "reservar";
                 const userDoc = await db.collection("usuarios").doc(user.uid).get();
-                
-                // Verificamos si el documento existe Y si su rol es explícitamente "admin"
-                if (userDoc.exists && userDoc.data().rol === "admin") {
-                    // Es administrador -> Va al panel de control exclusivo de admin
-                    window.location.href = "admin.html";
-                } else {
-                    // Es cliente común o usuario nuevo que no está en la tabla de admins -> Va a la cartelera
+
+                if (destinoElegido === "reservar") {
+                    // Si vino a reservar, va directo a la cartelera de deportes
                     window.location.href = "deportes.html";
+                } else {
+                    // Si vino a gestión, evaluamos si ya tiene cuenta de negocio/plan cargado
+                    if (userDoc.exists && userDoc.data().rol === "admin" && userDoc.data().plan) {
+                        // Ya tiene plan activo -> Va directo al panel de control según su tipo
+                        window.location.href = "admin.html";
+                    } else {
+                        // No tiene plan o es nuevo en gestión -> Lo mandamos a la pantalla de planes/suscripción
+                        window.location.href = "suscripciones.html";
+                    }
                 }
             } catch (error) {
-                console.error("Error al verificar el rol:", error);
-                // Por seguridad si falla la lectura, mandamos al cliente común
+                console.error("Error al enrutar:", error);
                 window.location.href = "deportes.html";
             }
         }
 
         document.addEventListener("DOMContentLoaded", () => {
-            // SEMÁFORO AUTOMÁTICO: Si el usuario ya está logueado, lo redirige sin pedir click
+            // Semáforo automático: si ya tiene la sesión abierta, lo redirige solo
             auth.onAuthStateChanged((user) => {
                 if (user) {
-                    verificarRolYRedirigir(user);
+                    enrutarUsuario(user);
                 }
             });
 
@@ -59,7 +63,7 @@
                 const pass = document.getElementById('pass').value;
                 
                 auth.signInWithEmailAndPassword(email, pass)
-                    .then(result => verificarRolYRedirigir(result.user))
+                    .then(result => enrutarUsuario(result.user))
                     .catch(error => alert("Error correo: " + error.message));
             });
 
@@ -67,7 +71,7 @@
             document.getElementById('btn-google').addEventListener('click', () => {
                 const provider = new firebase.auth.GoogleAuthProvider();
                 auth.signInWithPopup(provider)
-                    .then(result => verificarRolYRedirigir(result.user))
+                    .then(result => enrutarUsuario(result.user))
                     .catch(error => alert("Error Google: " + error.message));
             });
 
@@ -75,7 +79,7 @@
             document.getElementById('btn-facebook').addEventListener('click', () => {
                 const provider = new firebase.auth.FacebookAuthProvider();
                 auth.signInWithPopup(provider)
-                    .then(result => verificarRolYRedirigir(result.user))
+                    .then(result => enrutarUsuario(result.user))
                     .catch(error => alert("Error Facebook: " + error.message));
             });
         });
@@ -85,12 +89,12 @@
     <div style="background: #1e1e1e; max-width: 400px; margin: 0 auto; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
         
         <h2 style="color: #27ae60; margin-top: 0;">Ingreso a AP Turnos</h2>
-        <p style="color: #aaa; font-size: 14px; margin-bottom: 25px;">Gestión de Complejos Deportivos</p>
+        <p style="color: #aaa; font-size: 14px; margin-bottom: 25px;">Iniciá sesión para continuar</p>
         
         <div style="margin-bottom: 15px;">
             <input type="email" id="email" placeholder="Correo electrónico" style="padding: 10px; width: 90%; margin-bottom: 10px; border-radius: 5px; border: 1px solid #444; background: #121212; color: #fff; outline: none;">
             <input type="password" id="pass" placeholder="Contraseña" style="padding: 10px; width: 90%; margin-bottom: 10px; border-radius: 5px; border: 1px solid #444; background: #121212; color: #fff; outline: none;">
-            <button id="btn-email" style="padding: 10px 20px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; width: 95%; font-weight: bold; transition: 0.2s;" onmouseover="this.style.background='#219653'" onmouseout="this.style.background='#27ae60'">Entrar con Correo</button>
+            <button id="btn-email" style="padding: 10px 20px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; width: 95%; font-weight: bold;">Entrar con Correo</button>
         </div>
         
         <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
@@ -98,6 +102,10 @@
         <div>
             <button id="btn-google" style="padding: 10px; width: 95%; margin-bottom: 10px; background: #db4437; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Entrar con Google</button>
             <button id="btn-facebook" style="padding: 10px; width: 95%; background: #3b5998; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Entrar con Facebook</button>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <a href="home.html" style="color: #3498db; font-size: 13px; text-decoration: none;">← Volver al inicio</a>
         </div>
     </div>
 </body>
