@@ -3,9 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <title>Panel de Administración - AP Turnos</title>
+    <!-- SDK Modular de Firebase v10 (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px;">
+    
+    <div style="max-width: 1200px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>Panel de Administración ⚙️</h2>
+            <button id="btn-salir" style="padding: 6px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Cerrar Sesión</button>
+        </div>
+        
+        <p style="margin-top: 0;">Administrador: <span id="admin-email" style="font-weight: bold; color: #3498db;">Cargando...</span></p>
+
+        <!-- Configuración con Selector Numérico de Canchas -->
+        <form id="form-config" style="background: #2a2a2a; padding: 15px; border-radius: 6px; margin-bottom: 25px; display: flex; flex-direction: column; gap: 12px;">
+            <h3 style="margin-top: 0; color: #fff;">Configurar Canchas y Horarios Base</h3>
+            <div>
+                <label>Cantidad de Canchas:</label><br>
+                <select id="cantidad-canchas" required style="width: 100%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px; cursor: pointer;">
+                    <option value="1">1 Cancha</option>
+                    <option value="2">2 Canchas</option>
+                    <option value="3">3 Canchas</option>
+                    <option value="4">4 Canchas</option>
+                    <option value="5">5 Canchas</option>
+                    <option value="6">6 Canchas</option>
+                    <option value="7">7 Canchas</option>
+                    <option value="8">8 Canchas</option>
+                    <option value="9">9 Canchas</option>
+                    <option value="10">10 Canchas</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 15px;">
+                <div style="flex: 1;">
+                    <label>Deporte:</label><br>
+                    <input type="text" id="deporte" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
+                </div>
+                <div style="flex: 1;">
+                    <label>Apertura:</label><br>
+                    <input type="time" id="hora-apertura" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
+                </div>
+                <div style="flex: 1;">
+                    <label>Cierre:</label><br>
+                    <input type="time" id="hora-cierre" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
+                </div>
+                <div style="flex: 1;">
+                    <label>Duración (min):</label><br>
+                    <input type="number" id="duracion-turno" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
+                </div>
+            </div>
+            <button type="submit" style="padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Guardar Configuración</button>
+        </form>
+
+        <!-- Matriz del Día con el Calendario en su lugar original -->
+        <div style="background: #2a2a2a; padding: 15px; border-radius: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: #fff;">Matriz de Ocupación por Fecha</h3>
+                <input type="date" id="input-fecha-admin" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #121212; color: #fff;">
+            </div>
+            <div id="grilla-admin-container">
+                <!-- Grilla admin cargada dinámicamente -->
+            </div>
+        </div>
+    </div>
+
+    <!-- El script va al final para evitar errores de pantalla en negro -->
     <script>
         const firebaseConfig = {
           apiKey: "AIzaSyBaIoJ6c7U1E_YGHDjuP3fXehqFOb-MqMY",
@@ -16,25 +81,63 @@
           appId: "1:362178464205:web:48624c7ee600b8d8755c84",
           measurementId: "G-K7DTFN97VJ"
         };
+        
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        auth.onAuthStateChanged(async (user) => {
-            if (user) {
-                const userDoc = await db.collection("usuarios").doc(user.uid).get();
-                if (!userDoc.exists || userDoc.data().rol !== "admin") {
-                    alert("Acceso denegado.");
-                    window.location.href = "deportes.html";
+        document.addEventListener("DOMContentLoaded", () => {
+            
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    try {
+                        const userDoc = await db.collection("usuarios").doc(user.uid).get();
+                        if (!userDoc.exists || userDoc.data().rol !== "admin") {
+                            alert("Acceso denegado.");
+                            window.location.href = "deportes.html";
+                        } else {
+                            document.getElementById("admin-email").innerText = user.email;
+                            const hoy = new Date().toISOString().split('T')[0];
+                            document.getElementById("input-fecha-admin").value = hoy;
+                            cargarConfigAdmin(user.uid);
+                        }
+                    } catch (error) {
+                        console.error("Error al verificar admin:", error);
+                    }
                 } else {
-                    document.getElementById("admin-email").innerText = user.email;
-                    const hoy = new Date().toISOString().split('T')[0];
-                    document.getElementById("input-fecha-admin").value = hoy;
-                    cargarConfigAdmin(user.uid);
+                    window.location.href = "índice.html";
                 }
-            } else {
-                window.location.href = "índice.html";
-            }
+            });
+
+            document.getElementById("btn-salir").addEventListener("click", () => {
+                auth.signOut().then(() => window.location.href = "índice.html");
+            });
+
+            document.getElementById("input-fecha-admin").addEventListener("change", cargarGrillaAdmin);
+
+            document.getElementById("form-config").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const user = auth.currentUser;
+                
+                const cantidadCanchas = parseInt(document.getElementById("cantidad-canchas").value);
+                const canchasArray = Array.from({length: cantidadCanchas}, (_, i) => `Cancha ${i + 1}`);
+
+                try {
+                    await db.collection("negocios").doc(user.uid).set({
+                        deportePrincipal: document.getElementById("deporte").value,
+                        apertura: document.getElementById("hora-apertura").value,
+                        cierre: document.getElementById("hora-cierre").value,
+                        duracionMinutos: parseInt(document.getElementById("duracion-turno").value),
+                        canchas: canchasArray,
+                        actualizado: new Date().toISOString()
+                    }, { merge: true });
+                    alert("¡Configuración guardada con éxito!");
+                    cargarGrillaAdmin();
+                } catch (err) {
+                    console.error(err);
+                    alert("Error al guardar.");
+                }
+            });
         });
 
         async function cargarConfigAdmin(uid) {
@@ -48,7 +151,7 @@
                     document.getElementById("duracion-turno").value = data.duracionMinutos || 90;
                     
                     const cantidadCanchas = data.canchas ? data.canchas.length : 4;
-                    document.getElementById("cantidad-canchas").value = cantidadCanchas;
+                    document.getElementById("cantidad-canchas").value = cantidadCanchas.toString();
                 }
                 cargarGrillaAdmin();
             } catch (e) {
@@ -182,96 +285,6 @@
                 }
             }
         }
-
-        document.addEventListener("DOMContentLoaded", () => {
-            document.getElementById("btn-salir").addEventListener("click", () => auth.signOut().then(() => window.location.href = "índice.html"));
-            document.getElementById("input-fecha-admin").addEventListener("change", cargarGrillaAdmin);
-
-            document.getElementById("form-config").addEventListener("submit", async (e) => {
-                e.preventDefault();
-                const user = auth.currentUser;
-                
-                const cantidadCanchas = parseInt(document.getElementById("cantidad-canchas").value);
-                const canchasArray = Array.from({length: cantidadCanchas}, (_, i) => `Cancha ${i + 1}`);
-
-                try {
-                    await db.collection("negocios").doc(user.uid).set({
-                        deportePrincipal: document.getElementById("deporte").value,
-                        apertura: document.getElementById("hora-apertura").value,
-                        cierre: document.getElementById("hora-cierre").value,
-                        duracionMinutos: parseInt(document.getElementById("duracion-turno").value),
-                        canchas: canchasArray,
-                        actualizado: new Date().toISOString()
-                    }, { merge: true });
-                    alert("¡Configuración guardada con éxito!");
-                    cargarGrillaAdmin();
-                } catch (e) {
-                    console.error(e);
-                    alert("Error al guardar.");
-                }
-            });
-        });
     </script>
-</head>
-<body style="font-family: Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px;">
-    <div style="max-width: 1200px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2>Panel de Administración ⚙️</h2>
-            <button id="btn-salir" style="padding: 6px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Cerrar Sesión</button>
-        </div>
-        
-        <p style="margin-top: 0;">Administrador: <span id="admin-email" style="font-weight: bold; color: #3498db;">Cargando...</span></p>
-
-        <!-- Configuración con Selector Numérico de Canchas -->
-        <form id="form-config" style="background: #2a2a2a; padding: 15px; border-radius: 6px; margin-bottom: 25px; display: flex; flex-direction: column; gap: 12px;">
-            <h3 style="margin-top: 0; color: #fff;">Configurar Canchas y Horarios Base</h3>
-            <div>
-                <label>Cantidad de Canchas:</label><br>
-                <select id="cantidad-canchas" required style="width: 100%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px; cursor: pointer;">
-                    <option value="1">1 Cancha</option>
-                    <option value="2">2 Canchas</option>
-                    <option value="3">3 Canchas</option>
-                    <option value="4">4 Canchas</option>
-                    <option value="5">5 Canchas</option>
-                    <option value="6">6 Canchas</option>
-                    <option value="7">7 Canchas</option>
-                    <option value="8">8 Canchas</option>
-                    <option value="9">9 Canchas</option>
-                    <option value="10">10 Canchas</option>
-                </select>
-            </div>
-            <div style="display: flex; gap: 15px;">
-                <div style="flex: 1;">
-                    <label>Deporte:</label><br>
-                    <input type="text" id="deporte" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
-                </div>
-                <div style="flex: 1;">
-                    <label>Apertura:</label><br>
-                    <input type="time" id="hora-apertura" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
-                </div>
-                <div style="flex: 1;">
-                    <label>Cierre:</label><br>
-                    <input type="time" id="hora-cierre" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
-                </div>
-                <div style="flex: 1;">
-                    <label>Duración (min):</label><br>
-                    <input type="number" id="duracion-turno" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
-                </div>
-            </div>
-            <button type="submit" style="padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Guardar Configuración</button>
-        </form>
-
-        <!-- Matriz del Día con el Calendario en su lugar original -->
-        <div style="background: #2a2a2a; padding: 15px; border-radius: 6px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h3 style="margin: 0; color: #fff;">Matriz de Ocupación por Fecha</h3>
-                <input type="date" id="input-fecha-admin" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #121212; color: #fff;">
-            </div>
-            <div id="grilla-admin-container">
-                <!-- Grilla admin cargada dinámicamente -->
-            </div>
-        </div>
-    </div>
 </body>
 </html>
