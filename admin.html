@@ -72,3 +72,206 @@
                 const canchas = config.canchas || ["Cancha 1", "Cancha 2", "Cancha 3", "Cancha 4"];
                 const aperturaMin = convertirAMinutos(config.apertura || "08:00");
                 const cierreMin = convertirAMinutos(config.cierre || "23:00");
+                const duracion = parseInt(config.duracionMinutos) || 90;
+
+                const turnosSnap = await db.collection("turnos").where("fechaReserva", "==", fecha).get();
+                const ocupados = {};
+                turnosSnap.forEach(doc => {
+                    const t = doc.data();
+                    ocupados[`${t.cancha}_${t.horarioInicio}`] = { id: doc.id, ...t };
+                });
+
+                let bloquesArray = [];
+                let hActual = aperturaMin;
+                const limite = cierreMin <= aperturaMin ? cierreMin + 1440 : cierreMin;
+
+                while (hActual + duracion <= limite) {
+                    let inicioMins = hActual % 1440;
+                    let finMins = (hActual + duracion) % 1440;
+                    bloquesArray.push({
+                        inicio: convertirAHoras(inicioMins),
+                        fin: convertirAHoras(finMins)
+                    });
+                    hActual += duracion;
+                }
+
+                let tablaHTML = `
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; color: #fff; font-size: 12px; text-align: center;">
+                            <thead>
+                                <tr style="background: #1a1a1a; border-bottom: 2px solid #333;">
+                                    <th style="padding: 10px; text-align: left; width: 120px;">Cancha</th>
+                `;
+                bloquesArray.forEach(b => {
+                    tablaHTML += `<th style="padding: 10px 4px; min-width: 80px;">${b.inicio}</th>`;
+                });
+                tablaHTML += `</tr></thead><tbody>`;
+
+                canchas.forEach(cancha => {
+                    tablaHTML += `<tr style="border-bottom: 1px solid #2a2a2a;"><td style="padding: 10px; text-align: left; font-weight: bold; background: #1f1f1f;">${cancha}</td>`;
+                    
+                    bloquesArray.forEach(b => {
+                        const key = `${cancha}_${b.inicio}`;
+                        const reserva = ocupados[key];
+                        if (reserva) {
+                            tablaHTML += `
+                                <td style="padding: 6px;">
+                                    <div onclick="liberarTurnoAdmin('${reserva.id}')" style="background: #e74c3c; height: 36px; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font-size: 9px; cursor: pointer;" title="Ocupado por: ${reserva.clienteEmail}. Clic para liberar.">
+                                        <span>Ocupado</span>
+                                        <span style="font-size: 8px; opacity: 0.8;">(${reserva.clienteEmail.split('@')[0]})</span>
+                                    </div>
+                                </td>`;
+                        } else {
+                            tablaHTML += `
+                                <td style="padding: 6px;">
+                                    <button onclick="ocuparTurnoAdmin('${cancha}', '${b.inicio}', '${b.fin}', '${fecha}')" style="background: #2d3748; hover: background: #27ae60; border: 1px solid #4a5568; height: 36px; width: 100%; border-radius: 4px; color: #a0aec0; font-size: 10px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#27ae60'; this.style.color='#fff';" onmouseout="this.style.background='#2d3748'; this.style.color='#a0aec0';">Libre</button>
+                                </td>`;
+                        }
+                    });
+                    tablaHTML += `</tr>`;
+                });
+
+                tablaHTML += `</tbody></table></div>`;
+                contenedor.innerHTML = tablaHTML;
+
+            } catch (e) {
+                console.error(e);
+                contenedor.innerHTML = "<p style='color:#fff;'>Error al cargar matriz.</p>";
+            }
+        }
+
+        function convertirAMinutos(str) {
+            const [h, m] = str.split(':').map(Number);
+            return h * 60 + m;
+        }
+        function convertirAHoras(mins) {
+            const h = Math.floor(mins / 60).toString().padStart(2, '0');
+            const m = (mins % 60).toString().padStart(2, '0');
+            return `${h}:${m}`;
+        }
+
+        async function ocuparTurnoAdmin(cancha, inicio, fin, fecha) {
+            if (confirm(`¿Bloquear/Ocupar la ${cancha} para el ${fecha} de ${inicio} a ${fin}?`)) {
+                try {
+                    await db.collection("turnos").add({
+                        clienteUid: "ADMIN_LOCK",
+                        clienteEmail: "Administrador",
+                        cancha: cancha,
+                        horarioInicio: inicio,
+                        horarioFin: fin,
+                        fechaReserva: fecha,
+                        estado: "bloqueado",
+                        creado: new Date().toISOString()
+                    });
+                    cargarGrillaAdmin();
+                } catch (e) {
+                    console.error(e);
+                    alert("Error al ocupar el turno.");
+                }
+            }
+        }
+
+        async function liberarTurnoAdmin(turnoId) {
+            if (confirm("¿Liberar este turno ocupado?")) {
+                try {
+                    await db.collection("turnos").doc(turnoId).delete();
+                    cargarGrillaAdmin();
+                } catch (e) {
+                    console.error(e);
+                    alert("Error al liberar el turno.");
+                }
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("btn-salir").addEventListener("click", () => auth.signOut().then(() => window.location.href = "índice.html"));
+            document.getElementById("input-fecha-admin").addEventListener("change", cargarGrillaAdmin);
+
+            document.getElementById("form-config").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const user = auth.currentUser;
+                
+                const cantidadCanchas = parseInt(document.getElementById("cantidad-canchas").value);
+                const canchasArray = Array.from({length: cantidadCanchas}, (_, i) => `Cancha ${i + 1}`);
+
+                try {
+                    await db.collection("negocios").doc(user.uid).set({
+                        deportePrincipal: document.getElementById("deporte").value,
+                        apertura: document.getElementById("hora-apertura").value,
+                        cierre: document.getElementById("hora-cierre").value,
+                        duracionMinutos: parseInt(document.getElementById("duracion-turno").value),
+                        canchas: canchasArray,
+                        actualizado: new Date().toISOString()
+                    }, { merge: true });
+                    alert("¡Configuración guardada con éxito!");
+                    cargarGrillaAdmin();
+                } catch (e) {
+                    console.error(e);
+                    alert("Error al guardar.");
+                }
+            });
+        });
+    </script>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px;">
+    <div style="max-width: 1200px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>Panel de Administración ⚙️</h2>
+            <button id="btn-salir" style="padding: 6px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Cerrar Sesión</button>
+        </div>
+        
+        <p style="margin-top: 0;">Administrador: <span id="admin-email" style="font-weight: bold; color: #3498db;">Cargando...</span></p>
+
+        <!-- Configuración con Selector Numérico de Canchas -->
+        <form id="form-config" style="background: #2a2a2a; padding: 15px; border-radius: 6px; margin-bottom: 25px; display: flex; flex-direction: column; gap: 12px;">
+            <h3 style="margin-top: 0; color: #fff;">Configurar Canchas y Horarios Base</h3>
+            <div>
+                <label>Cantidad de Canchas:</label><br>
+                <select id="cantidad-canchas" required style="width: 100%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px; cursor: pointer;">
+                    <option value="1">1 Cancha</option>
+                    <option value="2">2 Canchas</option>
+                    <option value="3">3 Canchas</option>
+                    <option value="4">4 Canchas</option>
+                    <option value="5">5 Canchas</option>
+                    <option value="6">6 Canchas</option>
+                    <option value="7">7 Canchas</option>
+                    <option value="8">8 Canchas</option>
+                    <option value="9">9 Canchas</option>
+                    <option value="10">10 Canchas</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 15px;">
+                <div style="flex: 1;">
+                    <label>Deporte:</label><br>
+                    <input type="text" id="deporte" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
+                </div>
+                <div style="flex: 1;">
+                    <label>Apertura:</label><br>
+                    <input type="time" id="hora-apertura" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
+                </div>
+                <div style="flex: 1;">
+                    <label>Cierre:</label><br>
+                    <input type="time" id="hora-cierre" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
+                </div>
+                <div style="flex: 1;">
+                    <label>Duración (min):</label><br>
+                    <input type="number" id="duracion-turno" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
+                </div>
+            </div>
+            <button type="submit" style="padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Guardar Configuración</button>
+        </form>
+
+        <!-- Matriz del Día con el Calendario en su lugar original -->
+        <div style="background: #2a2a2a; padding: 15px; border-radius: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: #fff;">Matriz de Ocupación por Fecha</h3>
+                <input type="date" id="input-fecha-admin" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #121212; color: #fff;">
+            </div>
+            <div id="grilla-admin-container">
+                <!-- Grilla admin cargada dinámicamente -->
+            </div>
+        </div>
+    </div>
+</body>
+</html>
