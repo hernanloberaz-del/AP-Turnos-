@@ -22,7 +22,7 @@
         <!-- Configuración Base -->
         <form id="form-config" style="background: #2a2a2a; padding: 15px; border-radius: 6px; margin-bottom: 25px; display: flex; flex-direction: column; gap: 12px;">
             <h3 style="margin-top: 0; color: #fff;">Configurar Canchas y Horarios Base</h3>
-            <p style="font-size: 12px; color: #aaa; margin-top: -10px;">Al guardar, se generarán los turnos automáticamente. Luego podrás modificarlos o borrarlos uno por uno en la tabla de abajo.</p>
+            <p style="font-size: 12px; color: #aaa; margin-top: -10px;">Al guardar, se generarán los turnos automáticamente. Si modificas una hora en la tabla, las siguientes se acomodarán solas.</p>
             <div>
                 <label>Cantidad de Canchas:</label><br>
                 <select id="cantidad-canchas" required style="width: 100%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px; cursor: pointer;">
@@ -187,7 +187,6 @@
                 
                 let horariosLista = config.horariosGenerados;
                 
-                // Si no existen horarios generados (código viejo), los crea por única vez
                 if (!horariosLista) {
                     horariosLista = [];
                     let hActual = convertirAMinutos(config.apertura || "08:00");
@@ -215,22 +214,21 @@
                                     <th style="padding: 10px; text-align: left; width: 120px;">Cancha</th>
                 `;
                 
-                // Renderizamos cada encabezado como un INPUT editable
+                // Renderizamos los inputs editables (sin botón quitar)
                 horariosLista.forEach((horaInicio, index) => {
                     tablaHTML += `
                         <th style="padding: 10px 4px; min-width: 80px; text-align: center;">
                             <input type="time" value="${horaInicio}" 
-                                   onchange="modificarHoraColumna(${index}, this.value)"
-                                   style="background: #121212; border: 1px solid #555; color: #fff; border-radius: 4px; padding: 4px; font-size: 12px; font-weight: bold; width: 75px; text-align: center; margin-bottom: 5px;"><br>
-                            <button onclick="eliminarColumna(${index})" style="background: #e74c3c; border: none; color: white; border-radius: 3px; font-size: 9px; cursor: pointer; padding: 3px 6px;">Quitar</button>
+                                   onchange="modificarHoraCascada(${index}, this.value)"
+                                   style="background: #121212; border: 1px solid #555; color: #fff; border-radius: 4px; padding: 4px; font-size: 12px; font-weight: bold; width: 75px; text-align: center;">
                         </th>
                     `;
                 });
                 
-                // Botón para agregar nueva columna
+                // Botón para agregar nueva columna al final
                 tablaHTML += `
-                                    <th style="padding: 10px 4px; min-width: 60px; vertical-align: top;">
-                                        <button onclick="agregarColumna()" style="background: #27ae60; border: none; color: white; border-radius: 4px; font-size: 14px; cursor: pointer; padding: 5px; width: 100%; height: 35px;" title="Agregar Horario">+</button>
+                                    <th style="padding: 10px 4px; min-width: 60px;">
+                                        <button onclick="agregarColumna()" style="background: #27ae60; border: none; color: white; border-radius: 4px; font-size: 14px; cursor: pointer; padding: 5px; width: 100%;" title="Agregar Horario">+</button>
                                     </th>
                                 </tr>
                             </thead>
@@ -273,35 +271,44 @@
             }
         }
 
-        // --- Funciones para Modificar las Columnas Dinámicamente ---
-        async function modificarHoraColumna(index, nuevoValor) {
+        // --- Efecto Cascada ---
+        async function modificarHoraCascada(index, nuevoValor) {
             if (!nuevoValor) return;
             const user = auth.currentUser;
             const doc = await db.collection("negocios").doc(user.uid).get();
-            let horarios = doc.data().horariosGenerados;
+            const config = doc.data();
+            let horarios = config.horariosGenerados;
+            const duracion = parseInt(config.duracionMinutos) || 90;
+
+            // Cambiamos el valor seleccionado
             horarios[index] = nuevoValor;
-            horarios.sort((a,b) => convertirAMinutos(a) - convertirAMinutos(b));
+
+            // Recalculamos todos los siguientes sumando la duración
+            let hActual = convertirAMinutos(nuevoValor);
+            for (let i = index + 1; i < horarios.length; i++) {
+                hActual += duracion;
+                horarios[i] = convertirAHoras(hActual % 1440);
+            }
+
             await db.collection("negocios").doc(user.uid).update({ horariosGenerados: horarios });
             cargarGrillaAdmin();
-        }
-
-        async function eliminarColumna(index) {
-            if (confirm("¿Quitar esta columna de horarios de la grilla?")) {
-                const user = auth.currentUser;
-                const doc = await db.collection("negocios").doc(user.uid).get();
-                let horarios = doc.data().horariosGenerados;
-                horarios.splice(index, 1);
-                await db.collection("negocios").doc(user.uid).update({ horariosGenerados: horarios });
-                cargarGrillaAdmin();
-            }
         }
 
         async function agregarColumna() {
             const user = auth.currentUser;
             const doc = await db.collection("negocios").doc(user.uid).get();
-            let horarios = doc.data().horariosGenerados || [];
-            horarios.push("12:00"); // Añade uno por defecto al mediodía, el admin lo cambia
-            horarios.sort((a,b) => convertirAMinutos(a) - convertirAMinutos(b));
+            const config = doc.data();
+            let horarios = config.horariosGenerados || [];
+            const duracion = parseInt(config.duracionMinutos) || 90;
+
+            if (horarios.length > 0) {
+                // Suma la duración al último horario existente
+                const ultimaHora = convertirAMinutos(horarios[horarios.length - 1]);
+                horarios.push(convertirAHoras((ultimaHora + duracion) % 1440));
+            } else {
+                horarios.push("12:00");
+            }
+            
             await db.collection("negocios").doc(user.uid).update({ horariosGenerados: horarios });
             cargarGrillaAdmin();
         }
