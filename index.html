@@ -46,6 +46,13 @@
         }
 
         document.addEventListener("DOMContentLoaded", () => {
+            // SEMÁFORO AUTOMÁTICO: Si el usuario ya está logueado, lo redirige sin pedir click
+            auth.onAuthStateChanged((user) => {
+                if (user) {
+                    verificarRolYRedirigir(user);
+                }
+            });
+
             // 1. Login con Email y Contraseña
             document.getElementById('btn-email').addEventListener('click', () => {
                 const email = document.getElementById('email').value;
@@ -74,21 +81,23 @@
         });
     </script>
 </head>
-<body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f0f2f5;">
-    <div style="background: white; max-width: 400px; margin: 0 auto; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-        <h2>Ingreso a AP Turnos</h2>
+<body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #121212; color: #e0e0e0;">
+    <div style="background: #1e1e1e; max-width: 400px; margin: 0 auto; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+        
+        <h2 style="color: #27ae60; margin-top: 0;">Ingreso a AP Turnos</h2>
+        <p style="color: #aaa; font-size: 14px; margin-bottom: 25px;">Gestión de Complejos Deportivos</p>
         
         <div style="margin-bottom: 15px;">
-            <input type="email" id="email" placeholder="Correo electrónico" style="padding: 10px; width: 90%; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <input type="password" id="pass" placeholder="Contraseña" style="padding: 10px; width: 90%; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <button id="btn-email" style="padding: 10px 20px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; width: 95%;">Entrar con Correo</button>
+            <input type="email" id="email" placeholder="Correo electrónico" style="padding: 10px; width: 90%; margin-bottom: 10px; border-radius: 5px; border: 1px solid #444; background: #121212; color: #fff; outline: none;">
+            <input type="password" id="pass" placeholder="Contraseña" style="padding: 10px; width: 90%; margin-bottom: 10px; border-radius: 5px; border: 1px solid #444; background: #121212; color: #fff; outline: none;">
+            <button id="btn-email" style="padding: 10px 20px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; width: 95%; font-weight: bold; transition: 0.2s;" onmouseover="this.style.background='#219653'" onmouseout="this.style.background='#27ae60'">Entrar con Correo</button>
         </div>
         
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
         
         <div>
-            <button id="btn-google" style="padding: 10px; width: 95%; margin-bottom: 10px; background: #db4437; color: white; border: none; border-radius: 5px; cursor: pointer;">Entrar con Google</button>
-            <button id="btn-facebook" style="padding: 10px; width: 95%; background: #3b5998; color: white; border: none; border-radius: 5px; cursor: pointer;">Entrar con Facebook</button>
+            <button id="btn-google" style="padding: 10px; width: 95%; margin-bottom: 10px; background: #db4437; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Entrar con Google</button>
+            <button id="btn-facebook" style="padding: 10px; width: 95%; background: #3b5998; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Entrar con Facebook</button>
         </div>
     </div>
 </body>
