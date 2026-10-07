@@ -87,23 +87,40 @@ document.addEventListener("DOMContentLoaded", () => {
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // 4. Acción del botón para guardar en la nube
+        // 4. Acción del botón para guardar en la nube y enviar a Java si lo necesitás
         btn.addEventListener("click", async () => {
             const seleccion = select.options[select.selectedIndex].text;
             btn.innerText = "Guardando...";
             btn.disabled = true;
             
+            // Recuperamos el token de seguridad que guardamos al iniciar sesión
+            const tokenUsuario = sessionStorage.getItem("firebaseToken");
+
             try {
-                // Guardamos el dato en la colección "turnos"
+                // Guardamos el dato en la colección "turnos" de Firebase
                 await db.collection("turnos").add({
                     servicio: seleccion,
                     fecha: new Date().toISOString(),
                     estado: "pendiente"
                 });
-                alert("¡Turno guardado correctamente en Firebase!");
+
+                // Si querés enviar una petición HTTP a tu backend en Java en este mismo momento,
+                // podés usar fetch e incluir el token en los headers de esta manera:
+                /*
+                await fetch('https://tudominio-backend-java.com/api/turnos', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + tokenUsuario
+                    },
+                    body: JSON.stringify({ servicio: seleccion })
+                });
+                */
+
+                alert("¡Turno guardado correctamente!");
             } catch (error) {
-                console.error("Error Firebase: ", error);
-                alert("Error al guardar. Revisa la consola.");
+                console.error("Error: ", error);
+                alert("Error al procesar. Revisa la consola.");
             } finally {
                 btn.innerText = "Consultar Disponibilidad";
                 btn.disabled = false;
