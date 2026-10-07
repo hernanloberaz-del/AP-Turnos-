@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Administración - AP Turnos</title>
+    
+    <!-- SDK Modular de Firebase v10 (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        // Configuración de Firebase
+        const firebaseConfig = {
+          apiKey: "AIzaSyBaIoJ6c7U1E_YGHDjuP3fXehqFOb-MqMY",
+          authDomain: "ap-turnos.firebaseapp.com",
+          projectId: "ap-turnos",
+          storageBucket: "ap-turnos.firebasestorage.app",
+          messagingSenderId: "362178464205",
+          appId: "1:362178464205:web:48624c7ee600b8d8755c84",
+          measurementId: "G-K7DTFN97VJ"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Seguridad: Verificar que sea un administrador al cargar la página
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                const userDoc = await db.collection("usuarios").doc(user.uid).get();
+                if (!userDoc.exists || userDoc.data().rol !== "admin") {
+                    alert("Acceso denegado. No sos administrador.");
+                    window.location.href = "deportes.html";
+                } else {
+                    document.getElementById("admin-email").innerText = user.email;
+                }
+            } else {
+                // Si no hay sesión, al login
+                window.location.href = "índice.html";
+            }
+        });
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // Botón de cerrar sesión
+            document.getElementById("btn-salir").addEventListener("click", () => {
+                auth.signOut().then(() => {
+                    window.location.href = "índice.html";
+                });
+            });
+
+            // Guardar configuración del negocio
+            document.getElementById("form-config").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const user = auth.currentUser;
+                if (!user) return;
+
+                const tipoNegocio = document.getElementById("tipo-negocio").value;
+                const deporte = document.getElementById("deporte").value;
+                const horaApertura = document.getElementById("hora-apertura").value;
+                const horaCierre = document.getElementById("hora-cierre").value;
+                const duracionTurno = document.getElementById("duracion-turno").value;
+
+                try {
+                    // Guardamos la configuración en Firestore vinculada al ID del administrador
+                    await db.collection("negocios").doc(user.uid).set({
+                        tipo: tipoNegocio,
+                        deportePrincipal: deporte,
+                        apertura: horaApertura,
+                        cierre: horaCierre,
+                        duracionMinutos: parseInt(duracionTurno),
+                        actualizado: new Date().toISOString()
+                    }, { merge: true });
+
+                    alert("¡Configuración guardada con éxito!");
+                } catch (error) {
+                    console.error("Error al guardar:", error);
+                    alert("Error al guardar la configuración.");
+                }
+            });
+        });
+    </script>
+</head>
+<body style="font-family: Arial, sans-serif; text-align: center; padding: 30px; background-color: #f0f2f5;">
+    <div style="background: white; max-width: 600px; margin: 0 auto; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+        <h2>Panel de Administración ⚙️</h2>
+        <p>Bienvenido, <span id="admin-email" style="font-weight: bold;">Cargando...</span></p>
+        
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+
+        <h3>Configuración de tu Negocio / Horarios</h3>
+        <form id="form-config" style="text-align: left; display: flex; flex-direction: column; gap: 15px;">
+            <div>
+                <label style="font-weight: bold;">Tipo de Servicio:</label><br>
+                <select id="tipo-negocio" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
+                    <option value="cancha">Complejo de Canchas</option>
+                    <option value="profesor">Profesor Particular</option>
+                </select>
+            </div>
+
+            <div>
+                <label style="font-weight: bold;">Deporte / Actividad:</label><br>
+                <input type="text" id="deporte" placeholder="Ej: Pádel, Tenis, Fútbol 5" required style="width: 97%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                    <label style="font-weight: bold;">Hora Apertura:</label><br>
+                    <input type="time" id="hora-apertura" required style="width: 90%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-weight: bold;">Hora Cierre:</label><br>
+                    <input type="time" id="hora-cierre" required style="width: 90%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
+                </div>
+            </div>
+
+            <div>
+                <label style="font-weight: bold;">Duración de cada Turno (en minutos):</label><br>
+                <input type="number" id="duracion-turno" placeholder="Ej: 60 o 90" required style="width: 97%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
+            </div>
+
+            <button type="submit" style="padding: 10px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 10px;">Guardar Configuración</button>
+        </form>
+
+        <br>
+        <button id="btn-salir" style="padding: 8px 15px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer;">Cerrar Sesión</button>
+    </div>
+</body>
+</html>
