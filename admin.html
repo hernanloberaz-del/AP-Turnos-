@@ -3,12 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <title>Panel de Administración - AP Turnos</title>
-    
-    <!-- SDK Modular de Firebase v10 (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-
     <script>
         const firebaseConfig = {
           apiKey: "AIzaSyBaIoJ6c7U1E_YGHDjuP3fXehqFOb-MqMY",
@@ -19,258 +16,199 @@
           appId: "1:362178464205:web:48624c7ee600b8d8755c84",
           measurementId: "G-K7DTFN97VJ"
         };
-
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // Seguridad: Verificar que sea un administrador al cargar la página
         auth.onAuthStateChanged(async (user) => {
             if (user) {
                 const userDoc = await db.collection("usuarios").doc(user.uid).get();
                 if (!userDoc.exists || userDoc.data().rol !== "admin") {
-                    alert("Acceso denegado. No sos administrador.");
+                    alert("Acceso denegado.");
                     window.location.href = "deportes.html";
                 } else {
                     document.getElementById("admin-email").innerText = user.email;
-                    
-                    // Inicializar la fecha de hoy por defecto en el selector
                     const hoy = new Date().toISOString().split('T')[0];
-                    document.getElementById("input-fecha").value = hoy;
-
-                    cargarConfiguracionBase(user.uid);
-                    cargarPanelAdminPorFecha();
+                    document.getElementById("input-fecha-admin").value = hoy;
+                    cargarConfigAdmin(user.uid);
                 }
             } else {
                 window.location.href = "índice.html";
             }
         });
 
-        // Cargar configuración general del negocio (apertura, cierre, duración)
-        async function cargarConfiguracionBase(uid) {
+        async function cargarConfigAdmin(uid) {
             try {
                 const doc = await db.collection("negocios").doc(uid).get();
                 if (doc.exists) {
                     const data = doc.data();
-                    document.getElementById("tipo-negocio").value = data.tipo || "cancha";
-                    document.getElementById("deporte").value = data.deportePrincipal || "";
-                    document.getElementById("hora-apertura").value = data.apertura || "08:00";
-                    document.getElementById("hora-cierre").value = data.cierre || "22:00";
+                    document.getElementById("deporte").value = data.deportePrincipal || "Pádel";
+                    document.getElementById("hora-apertura").value = data.apertura || "10:00";
+                    document.getElementById("hora-cierre").value = data.cierre || "00:00";
                     document.getElementById("duracion-turno").value = data.duracionMinutos || 60;
+                    document.getElementById("nombres-canchas").value = (data.canchas || ["Cancha 1", "Cancha 2"]).join(", ");
                 }
-            } catch (error) {
-                console.error("Error al cargar configuración:", error);
+                cargarGrillaAdmin();
+            } catch (e) {
+                console.error(e);
             }
         }
 
-        // Cargar los turnos y reservas filtrados por la fecha seleccionada por el admin
-        async function cargarPanelAdminPorFecha() {
-            const fechaSeleccionada = document.getElementById("input-fecha").value;
-            const contenedor = document.getElementById("gestion-turnos-dia");
-            contenedor.innerHTML = `<p>Cargando disponibilidad para el día ${fechaSeleccionada}...</p>`;
+        async function cargarGrillaAdmin() {
+            const fecha = document.getElementById("input-fecha-admin").value;
+            const contenedor = document.getElementById("grilla-admin-container");
+            contenedor.innerHTML = "<p style='color:#fff;'>Cargando matriz del día...</p>";
 
             try {
-                // Buscamos la config para saber los horarios base
                 const user = auth.currentUser;
                 const negocioDoc = await db.collection("negocios").doc(user.uid).get();
-                
                 if (!negocioDoc.exists) {
-                    contenedor.innerHTML = "<p>Primero guardá la configuración de horarios generales arriba.</p>";
+                    contenedor.innerHTML = "<p style='color:#fff;'>Guarda la configuración general primero.</p>";
                     return;
                 }
-
                 const config = negocioDoc.data();
-                const aperturaMin = convertirAMinutos(config.apertura || "08:00");
-                const cierreMin = convertirAMinutos(config.cierre || "22:00");
+                const canchas = config.canchas || ["Cancha 1", "Cancha 2"];
+                const apertura = convertirAMinutos(config.apertura || "10:00");
+                const cierre = convertirAMinutos(config.cierre || "00:00");
                 const duracion = parseInt(config.duracionMinutos) || 60;
 
-                // Buscamos los turnos ya reservados para ESTA fecha en Firestore
-                const turnosSnapshot = await db.collection("turnos")
-                    .where("fechaReserva", "==", fechaSeleccionada)
-                    .get();
-
-                const turnosReservadosMap = {};
-                turnosSnapshot.forEach(doc => {
+                const turnosSnap = await db.collection("turnos").where("fechaReserva", "==", fecha).get();
+                const ocupados = {};
+                turnosSnap.forEach(doc => {
                     const t = doc.data();
-                    turnosReservadosMap[t.horarioInicio] = t; // Mapeamos por hora de inicio
+                    ocupados[`${t.cancha}_${t.horarioInicio}`] = t;
                 });
 
-                // Generamos la grilla interactiva para el administrador
-                let htmlGrilla = `
-                    <p style="font-weight: bold; color: #2c3e50;">Administrando turnos para el: ${fechaSeleccionada}</p>
-                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; margin-top: 10px;">
-                        <thead>
-                            <tr style="background: #2c3e50; color: white;">
-                                <th style="padding: 8px;">Horario</th>
-                                <th style="padding: 8px;">Estado / Cliente</th>
-                                <th style="padding: 8px; text-align: center;">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-
-                let horaActual = aperturaMin;
-                while (horaActual + duracion <= cierreMin) {
-                    let inicioStr = convertirAHoras(horaActual);
-                    let finStr = convertirAHoras(horaActual + duracion);
-                    
-                    let reserva = turnosReservadosMap[inicioStr];
-                    let estadoTexto = "";
-                    let accionHTML = "";
-
-                    if (reserva) {
-                        estadoTexto = `<span style="color: #c0392b; font-weight: bold;">Reservado por: ${reserva.clienteEmail}</span>`;
-                        accionHTML = `<span style="color: #7f8c8d; font-size: 12px;">Ocupado</span>`;
-                    } else {
-                        estadoTexto = `<span style="color: #27ae60; font-weight: bold;">Disponible</span>`;
-                        accionHTML = `<button onclick="bloquearTurnoAdmin('${inicioStr}', '${finStr}', '${fechaSeleccionada}')" style="padding: 4px 8px; background: #e67e22; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">Bloquear</button>`;
-                    }
-
-                    htmlGrilla += `
-                        <tr style="border-bottom: 1px solid #ddd;">
-                            <td style="padding: 8px;">🕒 ${inicioStr} - ${finStr} hs</td>
-                            <td style="padding: 8px;">${estadoTexto}</td>
-                            <td style="padding: 8px; text-align: center;">${accionHTML}</td>
-                        </tr>
-                    `;
-
-                    horaActual += duracion;
+                let horasArray = [];
+                let hActual = apertura;
+                while (hActual + duracion <= (cierre < apertura ? cierre + 1440 : cierre)) {
+                    horasArray.push({
+                        inicio: convertirAHoras(hActual % 1440),
+                        fin: convertirAHoras((hActual + duracion) % 1440)
+                    });
+                    hActual += duracion;
                 }
 
-                htmlGrilla += "</tbody></table>";
-                contenedor.innerHTML = htmlGrilla;
+                let tablaHTML = `
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; color: #fff; font-size: 13px; text-align: center;">
+                            <thead>
+                                <tr style="background: #1a1a1a; border-bottom: 2px solid #333;">
+                                    <th style="padding: 12px; text-align: left; width: 200px;">Cancha</th>
+                `;
+                horasArray.forEach(h => {
+                    tablaHTML += `<th style="padding: 12px 8px; min-width: 60px;">${h.inicio.split(':')[0]}</th>`;
+                });
+                tablaHTML += `</tr></thead><tbody>`;
 
-            } catch (error) {
-                console.error("Error al cargar panel por fecha:", error);
-                contenedor.innerHTML = "<p>Error al generar la disponibilidad del día.</p>";
+                canchas.forEach(cancha => {
+                    tablaHTML += `<tr style="border-bottom: 1px solid #2a2a2a;"><td style="padding: 12px; text-align: left; font-weight: bold; background: #1f1f1f;">${cancha}</td>`;
+                    
+                    horasArray.forEach(h => {
+                        const key = `${cancha}_${h.inicio}`;
+                        const reserva = ocupados[key];
+                        if (reserva) {
+                            tablaHTML += `<td style="padding: 8px;"><div style="background: #e74c3c; height: 40px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; cursor: pointer;" title="Ocupado por: ${reserva.clienteEmail}">Ocupado</div></td>`;
+                        } else {
+                            tablaHTML += `<td style="padding: 8px;"><div style="background: #2d3748; height: 40px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #a0aec0; font-size: 10px;">Libre</div></td>`;
+                        }
+                    });
+                    tablaHTML += `</tr>`;
+                });
+
+                tablaHTML += `</tbody></table></div>`;
+                contenedor.innerHTML = tablaHTML;
+
+            } catch (e) {
+                console.error(e);
+                contenedor.innerHTML = "<p style='color:#fff;'>Error al cargar matriz.</p>";
             }
         }
 
-        // Funciones auxiliares de tiempo
-        function convertirAMinutos(horaStr) {
-            const [h, m] = horaStr.split(':').map(Number);
+        function convertirAMinutos(str) {
+            const [h, m] = str.split(':').map(Number);
             return h * 60 + m;
         }
-
-        function convertirAHoras(minutosTotales) {
-            const h = Math.floor(minutosTotales / 60).toString().padStart(2, '0');
-            const m = (minutosTotales % 60).toString().padStart(2, '0');
+        function convertirAHoras(mins) {
+            const h = Math.floor(mins / 60).toString().padStart(2, '0');
+            const m = (mins % 60).toString().padStart(2, '0');
             return `${h}:${m}`;
         }
 
-        // Permitir al admin bloquear un turno manualmente
-        async function bloquearTurnoAdmin(inicio, fin, fecha) {
-            if (confirm(`¿Querés bloquear el turno de ${inicio} a ${fin} para el día ${fecha}?`)) {
-                try {
-                    await db.collection("turnos").add({
-                        clienteUid: "ADMIN_BLOQUEO",
-                        clienteEmail: "Bloqueado por el Complejo",
-                        horarioInicio: inicio,
-                        horarioFin: fin,
-                        fechaReserva: fecha,
-                        estado: "bloqueado"
-                    });
-                    cargarPanelAdminPorFecha();
-                } catch (error) {
-                    console.error("Error al bloquear:", error);
-                    alert("No se pudo bloquear el turno.");
-                }
-            }
-        }
-
         document.addEventListener("DOMContentLoaded", () => {
-            document.getElementById("btn-salir").addEventListener("click", () => {
-                auth.signOut().then(() => {
-                    window.location.href = "índice.html";
-                });
-            });
+            document.getElementById("btn-salir").addEventListener("click", () => auth.signOut().then(() => window.location.href = "índice.html"));
+            document.getElementById("input-fecha-admin").addEventListener("change", cargarGrillaAdmin);
 
-            // Cambiar fecha en el selector recarga la grilla del admin
-            document.getElementById("input-fecha").addEventListener("change", () => {
-                cargarPanelAdminPorFecha();
-            });
-
-            // Guardar configuración general del negocio
             document.getElementById("form-config").addEventListener("submit", async (e) => {
                 e.preventDefault();
                 const user = auth.currentUser;
-                if (!user) return;
+                const canchasArray = document.getElementById("nombres-canchas").value.split(',').map(c => c.trim()).filter(c => c.length > 0);
 
                 try {
                     await db.collection("negocios").doc(user.uid).set({
-                        tipo: document.getElementById("tipo-negocio").value,
                         deportePrincipal: document.getElementById("deporte").value,
                         apertura: document.getElementById("hora-apertura").value,
                         cierre: document.getElementById("hora-cierre").value,
                         duracionMinutos: parseInt(document.getElementById("duracion-turno").value),
+                        canchas: canchasArray,
                         actualizado: new Date().toISOString()
                     }, { merge: true });
-
-                    alert("¡Configuración guardada con éxito!");
-                    cargarPanelAdminPorFecha();
-                } catch (error) {
-                    console.error("Error al guardar:", error);
-                    alert("Error al guardar la configuración.");
+                    alert("¡Configuración y canchas guardadas con éxito!");
+                    cargarGrillaAdmin();
+                } catch (e) {
+                    console.error(e);
+                    alert("Error al guardar.");
                 }
             });
         });
     </script>
 </head>
-<body style="font-family: Arial, sans-serif; text-align: center; padding: 20px; background-color: #f0f2f5;">
-    <div style="background: white; max-width: 750px; margin: 0 auto; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-        <h2>Panel de Administración ⚙️</h2>
-        <p>Bienvenido, <span id="admin-email" style="font-weight: bold;">Cargando...</span></p>
-        
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+<body style="font-family: Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px;">
+    <div style="max-width: 1100px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>Panel de Administración - Grilla de Canchas ⚙️</h2>
+            <button id="btn-salir" style="padding: 6px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;">Cerrar Sesión</button>
+        </div>
+        <p>Administrador: <span id="admin-email" style="font-weight: bold; color: #3498db;">Cargando...</span></p>
 
-        <h3 style="text-align: left; color: #2c3e50;">1. Configuración General del Complejo</h3>
-        <form id="form-config" style="text-align: left; display: flex; flex-direction: column; gap: 12px;">
+        <!-- Configuración de Canchas y Horarios -->
+        <form id="form-config" style="background: #2a2a2a; padding: 15px; border-radius: 6px; margin-bottom: 25px; display: flex; flex-direction: column; gap: 12px;">
+            <h3 style="margin-top: 0; color: #fff;">Configurar Canchas y Horarios Base</h3>
             <div>
-                <label style="font-weight: bold;">Tipo de Servicio:</label><br>
-                <select id="tipo-negocio" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
-                    <option value="cancha">Complejo de Canchas</option>
-                    <option value="profesor">Profesor Particular</option>
-                </select>
+                <label>Nombres de las Canchas (separadas por coma):</label><br>
+                <input type="text" id="nombres-canchas" value="Cancha Padel 1, Cancha Padel 2, Cancha Padel 3, Cancha Padel 4" required style="width: 98%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
             </div>
-
-            <div>
-                <label style="font-weight: bold;">Deporte / Actividad:</label><br>
-                <input type="text" id="deporte" placeholder="Ej: Pádel, Tenis, Fútbol 5" required style="width: 97%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
-            </div>
-
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 15px;">
                 <div style="flex: 1;">
-                    <label style="font-weight: bold;">Hora Apertura:</label><br>
-                    <input type="time" id="hora-apertura" required style="width: 90%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
+                    <label>Deporte:</label><br>
+                    <input type="text" id="deporte" value="Pádel" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
                 </div>
                 <div style="flex: 1;">
-                    <label style="font-weight: bold;">Hora Cierre:</label><br>
-                    <input type="time" id="hora-cierre" required style="width: 90%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
+                    <label>Apertura:</label><br>
+                    <input type="time" id="hora-apertura" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
+                </div>
+                <div style="flex: 1;">
+                    <label>Cierre:</label><br>
+                    <input type="time" id="hora-cierre" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
+                </div>
+                <div style="flex: 1;">
+                    <label>Duración (min):</label><br>
+                    <input type="number" id="duracion-turno" value="60" required style="width: 95%; padding: 8px; background: #121212; border: 1px solid #444; color: #fff; border-radius: 4px; margin-top: 4px;">
                 </div>
             </div>
-
-            <div>
-                <label style="font-weight: bold;">Duración de cada Turno (minutos):</label><br>
-                <input type="number" id="duracion-turno" placeholder="Ej: 60" required style="width: 97%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc;">
-            </div>
-
-            <button type="submit" style="padding: 10px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">Guardar Configuración Base</button>
+            <button type="submit" style="padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Guardar Configuración</button>
         </form>
 
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
-
-        <h3 style="text-align: left; color: #2c3e50;">2. Gestión de Disponibilidad por Fecha</h3>
-        <div style="text-align: left; margin-bottom: 15px;">
-            <label style="font-weight: bold;">Seleccionar Día a Administrar:</label><br>
-            <input type="date" id="input-fecha" style="padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc; font-size: 14px;">
+        <!-- Matriz del Día -->
+        <div style="background: #2a2a2a; padding: 15px; border-radius: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: #fff;">Matriz de Ocupación por Fecha</h3>
+                <input type="date" id="input-fecha-admin" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #121212; color: #fff;">
+            </div>
+            <div id="grilla-admin-container">
+                <!-- Grilla admin cargada dinámicamente -->
+            </div>
         </div>
-
-        <div id="gestion-turnos-dia" style="max-height: 300px; overflow-y: auto; text-align: left; border: 1px solid #eee; padding: 10px; border-radius: 5px;">
-            <!-- Grilla interactiva del día seleccionando fecha -->
-        </div>
-
-        <br>
-        <button id="btn-salir" style="padding: 8px 15px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer;">Cerrar Sesión</button>
     </div>
 </body>
 </html>
