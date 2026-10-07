@@ -2,64 +2,15 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>AP Turnos - Gestión Deportiva</title>
-    <!-- SDK Modular de Firebase v10 (Compat) -->
+    <title>Acceso - AP Turnos</title>
+    
+    <!-- SDK Modular de Firebase v10 (Compat para Firestore y Auth) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-</head>
-<body style="font-family: Arial, sans-serif; margin: 40px; background: #f4f4f4; color: #333;">
-
-    <div style="max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-        <h1>AP Turnos - Software de Gestión</h1>
-        <p>Plataforma privada para complejos deportivos, profesores y organizadores de torneos.</p>
-        <hr style="border: 0; border-top: 1px solid #ddd; margin: 20px 0;">
-
-        <div style="display: flex; gap: 40px; flex-wrap: wrap;">
-            
-            <!-- Columna de Login -->
-            <div style="flex: 1; min-width: 300px;">
-                <h3>Iniciar Sesión</h3>
-                <form id="form-login">
-                    <div style="margin-bottom: 10px;">
-                        <label>Correo:</label><br>
-                        <input type="email" id="login-email" required style="width: 100%; padding: 8px; margin-top: 5px;">
-                    </div>
-                    <div style="margin-bottom: 15px;">
-                        <label>Contraseña:</label><br>
-                        <input type="password" id="login-pass" required style="width: 100%; padding: 8px; margin-top: 5px;">
-                    </div>
-                    <button type="submit" style="background: #27ae60; color: white; border: none; padding: 10px 15px; cursor: pointer; font-weight: bold; width: 100%;">Ingresar</button>
-                </form>
-            </div>
-
-            <!-- Columna de Registro de Nuevo Complejo / Usuario -->
-            <div style="flex: 1; min-width: 300px; border-left: 1px solid #eee; padding-left: 20px;">
-                <h3>Registrar Nuevo Complejo / Cuenta</h3>
-                <form id="form-registro">
-                    <div style="margin-bottom: 10px;">
-                        <label>Correo:</label><br>
-                        <input type="email" id="reg-email" required style="width: 100%; padding: 8px; margin-top: 5px;">
-                    </div>
-                    <div style="margin-bottom: 10px;">
-                        <label>Contraseña:</label><br>
-                        <input type="password" id="reg-pass" required style="width: 100%; padding: 8px; margin-top: 5px;">
-                    </div>
-                    <div style="margin-bottom: 15px;">
-                        <label>Tipo de Cuenta:</label><br>
-                        <select id="reg-rol" style="width: 100%; padding: 8px; margin-top: 5px;">
-                            <option value="admin">Complejo / Administrador (Suscripción)</option>
-                            <option value="jugador">Jugador (Reserva de turnos)</option>
-                        </select>
-                    </div>
-                    <button type="submit" style="background: #2980b9; color: white; border: none; padding: 10px 15px; cursor: pointer; font-weight: bold; width: 100%;">Crear Cuenta</button>
-                </form>
-            </div>
-
-        </div>
-    </div>
 
     <script>
+        // Configuración real de tu proyecto AP Turnos
         const firebaseConfig = {
           apiKey: "AIzaSyBaIoJ6c7U1E_YGHDjuP3fXehqFOb-MqMY",
           authDomain: "ap-turnos.firebaseapp.com",
@@ -69,76 +20,85 @@
           appId: "1:362178464205:web:48624c7ee600b8d8755c84",
           measurementId: "G-K7DTFN97VJ"
         };
-        
+
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // 🚦 Semáforo inteligente al cargar la página
-        auth.onAuthStateChanged(async (user) => {
-            if (user) {
-                redirigirSegunRol(user.uid);
-            }
-        });
-
-        async function redirigirSegunRol(uid) {
+        // Función para verificar estrictamente el rol en Firestore y redirigir
+        async function verificarRolYRedirigir(user) {
             try {
-                const doc = await db.collection("usuarios").doc(uid).get();
-                if (doc.exists) {
-                    const rol = doc.data().rol;
-                    if (rol === "admin") {
-                        window.location.href = "admin.html";
-                    } else {
-                        window.location.href = "deportes.html";
-                    }
+                const userDoc = await db.collection("usuarios").doc(user.uid).get();
+                
+                // Verificamos si el documento existe Y si su rol es explícitamente "admin"
+                if (userDoc.exists && userDoc.data().rol === "admin") {
+                    // Es administrador -> Va al panel de control exclusivo de admin
+                    window.location.href = "admin.html";
                 } else {
-                    // Si no tiene documento creado, por defecto lo mandamos a jugador
+                    // Es cliente común o usuario nuevo que no está en la tabla de admins -> Va a la cartelera
                     window.location.href = "deportes.html";
                 }
-            } catch (e) {
-                console.error("Error al leer rol:", e);
+            } catch (error) {
+                console.error("Error al verificar el rol:", error);
+                // Por seguridad si falla la lectura, mandamos al cliente común
+                window.location.href = "deportes.html";
             }
         }
 
-        // Lógica de Login
-        document.getElementById("form-login").addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const email = document.getElementById("login-email").value;
-            const pass = document.getElementById("login-pass").value;
+        document.addEventListener("DOMContentLoaded", () => {
+            // SEMÁFORO AUTOMÁTICO: Si el usuario ya está logueado, lo redirige sin pedir click
+            auth.onAuthStateChanged((user) => {
+                if (user) {
+                    verificarRolYRedirigir(user);
+                }
+            });
 
-            try {
-                const cred = await auth.signInWithEmailAndPassword(email, pass);
-                redirigirSegunRol(cred.user.uid);
-            } catch (err) {
-                alert("Error al iniciar sesión: " + err.message);
-            }
-        });
-
-        // Lógica de Registro inicial
-        document.getElementById("form-registro").addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const email = document.getElementById("reg-email").value;
-            const pass = document.getElementById("reg-pass").value;
-            const rolSeleccionado = document.getElementById("reg-rol").value;
-
-            try {
-                // 1. Crea el usuario en Firebase Authentication
-                const cred = await auth.createUserWithEmailAndPassword(email, pass);
+            // 1. Login con Email y Contraseña
+            document.getElementById('btn-email').addEventListener('click', () => {
+                const email = document.getElementById('email').value;
+                const pass = document.getElementById('pass').value;
                 
-                // 2. Guarda su rol correspondiente en Firestore
-                await db.collection("usuarios").doc(cred.user.uid).set({
-                    email: email,
-                    rol: rolSeleccionado,
-                    creado: new Date().toISOString()
-                });
+                auth.signInWithEmailAndPassword(email, pass)
+                    .then(result => verificarRolYRedirigir(result.user))
+                    .catch(error => alert("Error correo: " + error.message));
+            });
 
-                alert("¡Cuenta creada con éxito!");
-                redirigirSegunRol(cred.user.uid);
+            // 2. Login con Google
+            document.getElementById('btn-google').addEventListener('click', () => {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                auth.signInWithPopup(provider)
+                    .then(result => verificarRolYRedirigir(result.user))
+                    .catch(error => alert("Error Google: " + error.message));
+            });
 
-            } catch (err) {
-                alert("Error al registrarse: " + err.message);
-            }
+            // 3. Login con Facebook
+            document.getElementById('btn-facebook').addEventListener('click', () => {
+                const provider = new firebase.auth.FacebookAuthProvider();
+                auth.signInWithPopup(provider)
+                    .then(result => verificarRolYRedirigir(result.user))
+                    .catch(error => alert("Error Facebook: " + error.message));
+            });
         });
     </script>
+</head>
+<body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #121212; color: #e0e0e0;">
+    <div style="background: #1e1e1e; max-width: 400px; margin: 0 auto; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+        
+        <h2 style="color: #27ae60; margin-top: 0;">Ingreso a AP Turnos</h2>
+        <p style="color: #aaa; font-size: 14px; margin-bottom: 25px;">Gestión de Complejos Deportivos</p>
+        
+        <div style="margin-bottom: 15px;">
+            <input type="email" id="email" placeholder="Correo electrónico" style="padding: 10px; width: 90%; margin-bottom: 10px; border-radius: 5px; border: 1px solid #444; background: #121212; color: #fff; outline: none;">
+            <input type="password" id="pass" placeholder="Contraseña" style="padding: 10px; width: 90%; margin-bottom: 10px; border-radius: 5px; border: 1px solid #444; background: #121212; color: #fff; outline: none;">
+            <button id="btn-email" style="padding: 10px 20px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; width: 95%; font-weight: bold; transition: 0.2s;" onmouseover="this.style.background='#219653'" onmouseout="this.style.background='#27ae60'">Entrar con Correo</button>
+        </div>
+        
+        <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
+        
+        <div>
+            <button id="btn-google" style="padding: 10px; width: 95%; margin-bottom: 10px; background: #db4437; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Entrar con Google</button>
+            <button id="btn-facebook" style="padding: 10px; width: 95%; background: #3b5998; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Entrar con Facebook</button>
+        </div>
+    </div>
 </body>
 </html>
