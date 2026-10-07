@@ -101,12 +101,14 @@
                         console.error("Error al verificar admin:", error);
                     }
                 } else {
-                    window.location.href = "índice.html";
+                    // CORRECCIÓN: Apuntando a index.html
+                    window.location.href = "index.html";
                 }
             });
 
             document.getElementById("btn-salir").addEventListener("click", () => {
-                auth.signOut().then(() => window.location.href = "índice.html");
+                // CORRECCIÓN: Apuntando a index.html
+                auth.signOut().then(() => window.location.href = "index.html");
             });
 
             document.getElementById("input-fecha-admin").addEventListener("change", cargarGrillaAdmin);
@@ -138,7 +140,7 @@
                         cierre: document.getElementById("hora-cierre").value,
                         duracionMinutos: dur,
                         canchas: canchasArray,
-                        horariosGenerados: bloques, // Guardamos la lista de horarios
+                        horariosGenerados: bloques,
                         actualizado: new Date().toISOString()
                     }, { merge: true });
                     alert("¡Configuración generada y guardada con éxito!");
@@ -214,7 +216,6 @@
                                     <th style="padding: 10px; text-align: left; width: 120px;">Cancha</th>
                 `;
                 
-                // Renderizamos los inputs editables (sin botón quitar)
                 horariosLista.forEach((horaInicio, index) => {
                     tablaHTML += `
                         <th style="padding: 10px 4px; min-width: 80px; text-align: center;">
@@ -225,7 +226,6 @@
                     `;
                 });
                 
-                // Botón para agregar nueva columna al final
                 tablaHTML += `
                                     <th style="padding: 10px 4px; min-width: 60px;">
                                         <button onclick="agregarColumna()" style="background: #27ae60; border: none; color: white; border-radius: 4px; font-size: 14px; cursor: pointer; padding: 5px; width: 100%;" title="Agregar Horario">+</button>
@@ -259,7 +259,7 @@
                         }
                     });
                     
-                    tablaHTML += `<td style="background: #1a1a1a;"></td></tr>`; // Espacio vacío debajo del botón "+"
+                    tablaHTML += `<td style="background: #1a1a1a;"></td></tr>`;
                 });
 
                 tablaHTML += `</tbody></table></div>`;
@@ -271,7 +271,6 @@
             }
         }
 
-        // --- Efecto Cascada ---
         async function modificarHoraCascada(index, nuevoValor) {
             if (!nuevoValor) return;
             const user = auth.currentUser;
@@ -280,10 +279,8 @@
             let horarios = config.horariosGenerados;
             const duracion = parseInt(config.duracionMinutos) || 90;
 
-            // Cambiamos el valor seleccionado
             horarios[index] = nuevoValor;
 
-            // Recalculamos todos los siguientes sumando la duración
             let hActual = convertirAMinutos(nuevoValor);
             for (let i = index + 1; i < horarios.length; i++) {
                 hActual += duracion;
@@ -302,7 +299,6 @@
             const duracion = parseInt(config.duracionMinutos) || 90;
 
             if (horarios.length > 0) {
-                // Suma la duración al último horario existente
                 const ultimaHora = convertirAMinutos(horarios[horarios.length - 1]);
                 horarios.push(convertirAHoras((ultimaHora + duracion) % 1440));
             } else {
@@ -312,7 +308,6 @@
             await db.collection("negocios").doc(user.uid).update({ horariosGenerados: horarios });
             cargarGrillaAdmin();
         }
-        // -------------------------------------------------------------
 
         function convertirAMinutos(str) {
             const [h, m] = str.split(':').map(Number);
