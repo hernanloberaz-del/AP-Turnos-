@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Reserva de Turnos - Complejo Deportivo</title>
+    <!-- SDK Modular de Firebase v10 (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -20,12 +21,13 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
+        let duracionGlobal = 90; // Para calcular el horario de fin al reservar
+
         auth.onAuthStateChanged((user) => {
             if (!user) {
-                window.location.href = "índice.html";
+                window.location.href = "index.html";
             } else {
                 document.getElementById("user-email").innerText = user.email;
-                // Fecha por defecto hoy
                 const hoy = new Date().toISOString().split('T')[0];
                 document.getElementById("input-fecha-cliente").value = hoy;
                 cargarGrillaCliente();
@@ -38,59 +40,74 @@
             contenedor.innerHTML = "<p style='color: #fff;'>Cargando disponibilidad...</p>";
 
             try {
-                // 1. Obtenemos la configuración del negocio (canchas y horarios)
+                // 1. Obtenemos la configuración del negocio (asumimos el primer documento de negocios creado)
                 const negociosSnap = await db.collection("negocios").limit(1).get();
                 if (negociosSnap.empty) {
-                    contenedor.innerHTML = "<p style='color: #fff;'>El complejo aún no configuró sus canchas ni horarios.</p>";
+                    contenedor.innerHTML = "<p style='color: #fff;'>El complejo aún no ha configurado sus canchas ni horarios.</p>";
                     return;
                 }
+                
                 const config = negociosSnap.docs[0].data();
-                const canchas = config.canchas || ["Cancha 1", "Cancha 2"]; // Nombres de las canchas
-                const apertura = convertirAMinutos(config.apertura || "10:00");
-                const cierre = convertirAMinutos(config.cierre || "00:00");
-                const duracion = parseInt(config.duracionMinutos) || 60;
+                const canchas = config.canchas || ["Cancha 1", "Cancha 2"];
+                const horariosLista = config.horariosGenerados;
+                duracionGlobal = parseInt(config.duracionMinutos) || 90;
 
-                // 2. Obtenemos las reservas existentes para esta fecha
-                const turnosSnap = await db.collection("turnos").where("fechaReserva", "==", fecha).get();
-                const ocupados = {}; // Clave: "Cancha_Horario", Valor: true
-                turnosSnap.forEach(doc => {
-                    const t = doc.data();
-                    ocupados[`${t.cancha}_${t.horarioInicio}`] = true;
-                });
-
-                // 3. Generamos las columnas de horas
-                let horasArray = [];
-                let hActual = apertura;
-                while (hActual + duracion <= (cierre < apertura ? cierre + 1440 : cierre)) {
-                    horasArray.push({
-                        inicio: convertirAHoras(hActual % 1440),
-                        fin: convertirAHoras((hActual + duracion) % 1440)
-                    });
-                    hActual += duracion;
+                if (!horariosLista || horariosLista.length === 0) {
+                    contenedor.innerHTML = "<p style='color: #fff;'>El administrador aún no generó la grilla de horarios.</p>";
+                    return;
                 }
 
-                // 4. Dibujamos la tabla estilo ATC Sports (Tema Oscuro)
+                // 2. Obtenemos las reservas para la fecha seleccionada
+                const turnosSnap = await db.collection("turnos").where("fechaReserva", "==", fecha).get();
+                const ocupados = {};
+                turnosSnap.forEach(doc => {
+                    const t = doc.data();
+                    ocupados[`${t.cancha}_${t.horarioInicio}`] = t;
+                });
+
+                // 3. Dibujamos la tabla matricial
                 let tablaHTML = `
                     <div style="overflow-x: auto;">
                         <table style="width: 100%; border-collapse: collapse; color: #fff; font-size: 13px; text-align: center;">
                             <thead>
                                 <tr style="background: #1a1a1a; border-bottom: 2px solid #333;">
-                                    <th style="padding: 12px; text-align: left; width: 200px;">Cancha</th>
+                                    <th style="padding: 12px; text-align: left; width: 120px;">Cancha</th>
                 `;
-                horasArray.forEach(h => {
-                    tablaHTML += `<th style="padding: 12px 8px; min-width: 60px;">${h.inicio.split(':')[0]}</th>`;
+                
+                horariosLista.forEach(hora => {
+                    tablaHTML += `<th style="padding: 12px 4px; min-width: 80px;">${hora}</th>`;
                 });
                 tablaHTML += `</tr></thead><tbody>`;
 
                 canchas.forEach(cancha => {
                     tablaHTML += `<tr style="border-bottom: 1px solid #2a2a2a;"><td style="padding: 12px; text-align: left; font-weight: bold; background: #1f1f1f;">${cancha}</td>`;
                     
-                    horasArray.forEach(h => {
-                        const key = `${cancha}_${h.inicio}`;
-                        if (ocupados[key]) {
-                            tablaHTML += `<td style="padding: 8px;"><div style="background: #4a5568; height: 40px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #a0aec0; font-size: 11px;" title="Ocupado">Ocupado</div></td>`;
+                    horariosLista.forEach(horaInicio => {
+                        const key = `${cancha}_${horaInicio}`;
+                        const reserva = ocupados[key];
+                        
+                        if (reserva) {
+                            // Turno ocupado (ya sea por un cliente o bloqueado por el admin)
+                            const textoOcupado = reserva.estado === "bloqueado" ? "No disponible" : "Ocupado";
+                            tablaHTML += `
+                                <td style="padding: 8px;">
+                                    <div style="background: #4a5568; height: 40px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #a0aec0; font-size: 11px; cursor: not-allowed;" title="Turno no disponible">
+                                        ${textoOcupado}
+                                    </div>
+                                </td>`;
                         } else {
-                            tablaHTML += `<td style="padding: 8px;"><button onclick="reservar('${cancha}', '${h.inicio}', '${h.fin}', '${fecha}')" style="background: #2d3748; hover: background: #38a169; border: 1px solid #4a5568; height: 40px; width: 100%; border-radius: 4px; color: #fff; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#27ae60'" onmouseout="this.style.background='#2d3748'">${h.inicio}</button></td>`;
+                            // Turno libre para reservar
+                            const finStr = convertirAHoras((convertirAMinutos(horaInicio) + duracionGlobal) % 1440);
+                            tablaHTML += `
+                                <td style="padding: 8px;">
+                                    <button onclick="reservar('${cancha}', '${horaInicio}', '${finStr}', '${fecha}')" 
+                                            style="background: #2d3748; border: 1px solid #4a5568; height: 40px; width: 100%; border-radius: 4px; color: #fff; cursor: pointer; transition: 0.2s;" 
+                                            onmouseover="this.style.background='#27ae60'" 
+                                            onmouseout="this.style.background='#2d3748'"
+                                            title="Reservar de ${horaInicio} a ${finStr}">
+                                        Libre
+                                    </button>
+                                </td>`;
                         }
                     });
                     tablaHTML += `</tr>`;
@@ -117,7 +134,7 @@
 
         async function reservar(cancha, inicio, fin, fecha) {
             const user = auth.currentUser;
-            if (confirm(`¿Confirmar reserva en ${cancha} para el ${fecha} de ${inicio} a ${fin}?`)) {
+            if (confirm(`¿Confirmás tu reserva en ${cancha} para el ${fecha} a las ${inicio} hs?`)) {
                 try {
                     await db.collection("turnos").add({
                         clienteUid: user.uid,
@@ -129,37 +146,43 @@
                         estado: "reservado",
                         creado: new Date().toISOString()
                     });
-                    alert("¡Reserva realizada con éxito!");
+                    alert("¡Reserva confirmada con éxito!");
                     cargarGrillaCliente();
                 } catch (e) {
                     console.error(e);
-                    alert("Error al concretar la reserva.");
+                    alert("Hubo un error al procesar la reserva.");
                 }
             }
         }
 
         document.addEventListener("DOMContentLoaded", () => {
-            document.getElementById("btn-salir").addEventListener("click", () => auth.signOut().then(() => window.location.href = "índice.html"));
+            document.getElementById("btn-salir").addEventListener("click", () => {
+                auth.signOut().then(() => window.location.href = "index.html");
+            });
             document.getElementById("input-fecha-cliente").addEventListener("change", cargarGrillaCliente);
         });
     </script>
 </head>
 <body style="font-family: Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px;">
-    <div style="max-width: 1100px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2>Reserva de Turnos - AP Turnos</h2>
-            <button id="btn-salir" style="padding: 6px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;">Cerrar Sesión</button>
-        </div>
-        <p>Usuario: <span id="user-email" style="font-weight: bold; color: #3498db;">Cargando...</span></p>
+    <div style="max-width: 1200px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
         
-        <div style="margin: 20px 0; background: #2a2a2a; padding: 15px; border-radius: 6px; display: flex; align-items: center; gap: 15px;">
-            <label style="font-weight: bold;">Seleccionar Fecha:</label>
-            <input type="date" id="input-fecha-cliente" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #121212; color: #fff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+            <h2>Reserva de Turnos 🎾</h2>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="background: #2a2a2a; padding: 6px 12px; border-radius: 4px; border: 1px solid #444; display: flex; align-items: center; gap: 8px;">
+                    <label style="margin: 0; font-size: 14px; font-weight: bold; color: #a0aec0;">📅 Fecha:</label>
+                    <input type="date" id="input-fecha-cliente" style="padding: 4px; border-radius: 4px; border: none; background: transparent; color: #fff; font-size: 14px; outline: none; cursor: pointer;">
+                </div>
+                <button id="btn-salir" style="padding: 10px 15px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Cerrar Sesión</button>
+            </div>
         </div>
+        
+        <p style="margin-top: 0;">Jugador: <span id="user-email" style="font-weight: bold; color: #3498db;">Cargando...</span></p>
 
-        <div id="grilla-cliente-container">
+        <div id="grilla-cliente-container" style="background: #2a2a2a; padding: 15px; border-radius: 6px; margin-top: 20px;">
             <!-- Grilla matricial cargada dinámicamente -->
         </div>
+        
     </div>
 </body>
 </html>
