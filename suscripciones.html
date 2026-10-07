@@ -1,1 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Planes y Suscripciones - AP Turnos</title>
+    <!-- SDK Modular de Firebase v10 (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 40px; text-align: center;">
 
+    <div style="max-width: 1000px; margin: 0 auto;">
+        <h1 style="color: #27ae60; font-size: 32px; margin-bottom: 10px;">Elegí el plan ideal para tu complejo o actividad</h1>
+        <p style="color: #aaa; margin-bottom: 40px;">Potenciá la administración de tus canchas, clases y torneos con AP Turnos.</p>
+
+        <!-- Contenedor de Tarjetas de Planes -->
+        <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+            
+            <!-- Plan 1: Canchas Básicas -->
+            <div style="background: #1e1e1e; border: 1px solid #333; border-radius: 8px; padding: 30px; width: 280px; text-align: left; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <h3 style="margin-top: 0; color: #fff; font-size: 20px;">Gestión de Canchas</h3>
+                    <div style="font-size: 32px; font-weight: bold; color: #27ae60; margin: 15px 0;">$80 <span style="font-size: 14px; color: #888; font-weight: normal;">/mes</span></div>
+                    <p style="font-size: 13px; color: #aaa; margin-bottom: 20px;">Ideal para clubes que necesitan ordenar sus horarios y reservas.</p>
+                    <ul style="font-size: 13px; color: #ccc; padding-left: 20px; line-height: 1.6; margin-bottom: 25px;">
+                        <li>Grilla de turnos interactiva</li>
+                        <li>Control de hasta 3 canchas</li>
+                        <li>Bloqueo manual de horarios</li>
+                        <li>Acceso exclusivo para admin</li>
+                    </ul>
+                </div>
+                <button onclick="seleccionarPlan('canchas_basico')" style="background: #27ae60; color: white; border: none; padding: 12px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%;">Seleccionar Plan</button>
+            </div>
+
+            <!-- Plan 2: Full Club (Canchas + Torneos + Clases) -->
+            <div style="background: #1e1e1e; border: 2px solid #27ae60; border-radius: 8px; padding: 30px; width: 280px; text-align: left; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+                <div style="position: absolute; top: -12px; right: 20px; background: #27ae60; color: white; font-size: 11px; font-weight: bold; padding: 4px 10px; border-radius: 20px;">RECOMENDADO</div>
+                <div>
+                    <h3 style="margin-top: 0; color: #fff; font-size: 20px;">Plan Full Club</h3>
+                    <div style="font-size: 32px; font-weight: bold; color: #27ae60; margin: 15px 0;">$150 <span style="font-size: 14px; color: #888; font-weight: normal;">/mes</span></div>
+                    <p style="font-size: 13px; color: #aaa; margin-bottom: 20px;">La solución definitiva para complejos completos y organizadores.</p>
+                    <ul style="font-size: 13px; color: #ccc; padding-left: 20px; line-height: 1.6; margin-bottom: 25px;">
+                        <li>Canchas ilimitadas</li>
+                        <li>Organización de Torneos</li>
+                        <li>Gestión de Clases y Alumnos</li>
+                        <li>Grilla avanzada en cascada</li>
+                    </ul>
+                </div>
+                <button onclick="seleccionarPlan('full_club')" style="background: #27ae60; color: white; border: none; padding: 12px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%;">Seleccionar Plan Full</button>
+            </div>
+
+            <!-- Plan 3: Profesores / Torneos Independientes -->
+            <div style="background: #1e1e1e; border: 1px solid #333; border-radius: 8px; padding: 30px; width: 280px; text-align: left; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <h3 style="margin-top: 0; color: #fff; font-size: 20px;">Profes y Torneos</h3>
+                    <div style="font-size: 32px; font-weight: bold; color: #27ae60; margin: 15px 0;">$60 <span style="font-size: 14px; color: #888; font-weight: normal;">/mes</span></div>
+                    <p style="font-size: 13px; color: #aaa; margin-bottom: 20px;">Enfocado en instructores y organizadores itinerantes.</p>
+                    <ul style="font-size: 13px; color: #ccc; padding-left: 20px; line-height: 1.6; margin-bottom: 25px;">
+                        <li>Agenda de alumnos y clases</li>
+                        <li>Gestión de cuadros de torneos</li>
+                        <li>Sin gestión de canchas fijas</li>
+                    </ul>
+                </div>
+                <button onclick="seleccionarPlan('profes_torneos')" style="background: #27ae60; color: white; border: none; padding: 12px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%;">Seleccionar Plan</button>
+            </div>
+
+        </div>
+
+        <div style="margin-top: 40px;">
+            <a href="index.html" style="color: #aaa; font-size: 13px; text-decoration: none;">Cerrar sesión / Volver</a>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyBaIoJ6c7U1E_YGHDjuP3fXehqFOb-MqMY",
+          authDomain: "ap-turnos.firebaseapp.com",
+          projectId: "ap-turnos",
+          storageBucket: "ap-turnos.firebasestorage.app",
+          messagingSenderId: "362178464205",
+          appId: "1:362178464205:web:48624c7ee600b8d8755c84",
+          measurementId: "G-K7DTFN97VJ"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Al seleccionar un plan, guardamos el rol como "admin", el plan elegido y pasamos al panel
+        async function seleccionarPlan(nombrePlan) {
+            const user = auth.currentUser;
+            if (!user) {
+                alert("Por favor, inicia sesión nuevamente.");
+                window.location.href = "index.html";
+                return;
+            }
+
+            try {
+                await db.collection("usuarios").doc(user.uid).set({
+                    email: user.email,
+                    rol: "admin",
+                    plan: nombrePlan,
+                    estadoSuscripcion: "activo", // En el futuro acá se conectará la pasarela de pagos
+                    actualizado: new Date().toISOString()
+                }, { merge: true });
+
+                alert("¡Plan seleccionado con éxito! Redirigiendo a tu panel de control...");
+                window.location.href = "admin.html";
+            } catch (err) {
+                console.error("Error al guardar suscripción:", err);
+                alert("Hubo un error al registrar el plan.");
+            }
+        }
+    </script>
+</body>
+</html>
