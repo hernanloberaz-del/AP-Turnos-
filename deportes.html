@@ -1,3 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Deportes - AP Turnos</title>
+    
+    <!-- SDK Modular de Firebase v10 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        // Tu configuración real de Firebase
+        const firebaseConfig = {
+          apiKey: "AIzaSyBaIoJ6c7U1E_YGHDjuP3fXehqFOb-MqMY",
+          authDomain: "ap-turnos.firebaseapp.com",
+          projectId: "ap-turnos",
+          storageBucket: "ap-turnos.firebasestorage.app",
+          messagingSenderId: "362178464205",
+          appId: "1:362178464205:web:48624c7ee600b8d8755c84",
+          measurementId: "G-K7DTFN97VJ"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // Vigilar si el usuario está conectado
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                console.log("¡Bienvenido!", user.email || user.displayName);
+                
+                // Extraer el TOKEN para mandarlo a Java
+                user.getIdToken().then((token) => {
+                    console.log("Token listo para usar en app.js y Java:", token);
+                    
+                    // Guardamos el token en sessionStorage para que app.js lo pueda usar
+                    sessionStorage.setItem("firebaseToken", token);
+                });
+            } else {
+                // Si no hay usuario, lo devolvemos al login (índice.html)
+                window.location.href = "índice.html";
+            }
+        });
+
+        // Botón para cerrar sesión
+        document.addEventListener("DOMContentLoaded", () => {
+            const btnSalir = document.getElementById("btn-salir");
+            if (btnSalir) {
+                btnSalir.addEventListener("click", () => {
+                    signOut(auth).then(() => {
+                        sessionStorage.removeItem("firebaseToken");
+                        window.location.href = "índice.html";
+                    });
+                });
+            }
+        });
+    </script>
+</head>
 <body>
-<script src="app.js"></script>
+    <h2>Sección de Deportes (Área Segura)</h2>
+    
+    <button id="btn-salir">Cerrar Sesión</button>
+    <hr>
+    
+    <!-- Todo el resto de tu interfaz de deportes iría aquí -->
+
+    <!-- Tu script original que ahora podrá usar el token -->
+    <script src="app.js"></script>
 </body>
+</html>
