@@ -2,14 +2,14 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Deportes - AP Turnos</title>
+    <title>Reserva de Turnos - AP Turnos</title>
     
-    <!-- SDK Modular de Firebase v10 -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    <!-- SDK Modular de Firebase v10 (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
-        // Tu configuración real de Firebase
+    <script>
         const firebaseConfig = {
           apiKey: "AIzaSyBaIoJ6c7U1E_YGHDjuP3fXehqFOb-MqMY",
           authDomain: "ap-turnos.firebaseapp.com",
@@ -20,50 +20,130 @@
           measurementId: "G-K7DTFN97VJ"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
 
-        // Vigilar si el usuario está conectado
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                console.log("¡Bienvenido!", user.email || user.displayName);
-                
-                // Extraer el TOKEN para mandarlo a Java
-                user.getIdToken().then((token) => {
-                    console.log("Token listo para usar en app.js y Java:", token);
-                    
-                    // Guardamos el token en sessionStorage para que app.js lo pueda usar
-                    sessionStorage.setItem("firebaseToken", token);
-                });
-            } else {
-                // Si no hay usuario, lo devolvemos al login (índice.html)
+        // Verificar autenticación del cliente
+        auth.onAuthStateChanged((user) => {
+            if (!user) {
                 window.location.href = "índice.html";
+            } else {
+                document.getElementById("user-email").innerText = user.email;
+                cargarHorariosDisponibles();
             }
         });
 
-        // Botón para cerrar sesión
-        document.addEventListener("DOMContentLoaded", () => {
-            const btnSalir = document.getElementById("btn-salir");
-            if (btnSalir) {
-                btnSalir.addEventListener("click", () => {
-                    signOut(auth).then(() => {
-                        sessionStorage.removeItem("firebaseToken");
-                        window.location.href = "índice.html";
-                    });
-                });
+        // Función para generar los turnos basados en la configuración del Administrador
+        async function cargarHorariosDisponibles() {
+            const contenedorTurnos = document.getElementById("lista-turnos");
+            contenedorTurnos.innerHTML = "<p>Cargando horarios disponibles...</p>";
+
+            try {
+                // Buscamos la configuración del negocio en Firestore 
+                // (Asumimos por ahora el primer negocio configurado o un ID genérico)
+                const negociosSnapshot = await db.collection("negocios").limit(1).get();
+
+                if (negociosSnapshot.empty) {
+                    contenedorTurnos.innerHTML = "<p>El administrador aún no ha configurado los horarios del complejo.</p>";
+                    return;
+                }
+
+                const negocioData = negociosSnapshot.docs[0].data();
+                document.getElementById("titulo-deporte").innerText = `Actividad: ${negocioData.deportePrincipal || 'General'} (${negocioData.tipo === 'cancha' ? 'Complejo de Canchas' : 'Profesor'})`;
+
+                const apertura = negocioData.apertura; // Ej: "08:00"
+                const cierre = negocioData.cierre;     // Ej: "22:00"
+                const duracion = parseInt(negocioData.duracionMinutos) || 60; // en minutos
+
+                // Generamos los bloques de horarios dinámicamente
+                let turnosHTML = "";
+                let horaActual = convertirAMinutos(apertura);
+                const minutosCierre = convertirAMinutos(cierre);
+
+                while (horaActual + duracion <= minutosCierre) {
+                    let horaInicioStr = convertirAHoras(horaActual);
+                    let horaFinStr = convertirAHoras(horaActual + duracion);
+
+                    turnosHTML += `
+                        <div style="background: #f9f9f9; padding: 12px; margin-bottom: 8px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ddd;">
+                            <span>🕒 <strong>${horaInicioStr} - ${horaFinStr} hs</strong></span>
+                            <button onclick="reservarTurno('${horaInicioStr}', '${horaFinStr}')" style="padding: 6px 12px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer;">Reservar</button>
+                        </div>
+                    `;
+
+                    horaActual += duracion;
+                }
+
+                contenedorTurnos.innerHTML = turnosHTML || "<p>No hay turnos disponibles en ese rango horario.</p>";
+
+            } catch (error) {
+                console.error("Error al cargar horarios:", error);
+                contenedorTurnos.innerHTML = "<p>Error al cargar la disponibilidad.</p>";
             }
+        }
+
+        // Funciones auxiliares para calcular horas
+        function convertirAMinutos(horaStr) {
+            const [partesH, partesM] = horaStr.split(':').map(Number);
+            return partesH * 60 + partesM;
+        }
+
+        function convertirAHoras(minutosTotales) {
+            const h = Math.floor(minutosTotales / 60).toString().padStart(2, '0');
+            const m = (minutosTotales % 60).toString().padStart(2, '0');
+            return `${h}:${m}`;
+        }
+
+        // Función para registrar la reserva del cliente
+        async function reservarTurno(inicio, fin) {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            if (confirm(`¿Confirmás la reserva para el turno de ${inicio} a ${fin}?`)) {
+                try {
+                    await db.collection("turnos").add({
+                        clienteUid: user.uid,
+                        clienteEmail: user.email,
+                        horarioInicio: inicio,
+                        horarioFin: fin,
+                        fechaReserva: new Date().toISOString().split('T')[0],
+                        estado: "reservado"
+                    });
+
+                    alert("¡Turno reservado con éxito!");
+                } catch (error) {
+                    console.error("Error al reservar:", error);
+                    alert("No se pudo concretar la reserva.");
+                }
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("btn-salir").addEventListener("click", () => {
+                auth.signOut().then(() => {
+                    window.location.href = "índice.html";
+                });
+            });
         });
     </script>
 </head>
-<body>
-    <h2>Sección de Deportes (Área Segura)</h2>
-    
-    <button id="btn-salir">Cerrar Sesión</button>
-    <hr>
-    
-    <!-- Todo el resto de tu interfaz de deportes iría aquí -->
+<body style="font-family: Arial, sans-serif; text-align: center; padding: 30px; background-color: #f0f2f5;">
+    <div style="background: white; max-width: 600px; margin: 0 auto; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+        <h2>Panel de Clientes - AP Turnos</h2>
+        <p>Usuario: <span id="user-email" style="font-weight: bold;">Cargando...</span></p>
+        
+        <h3 id="titulo-deporte" style="color: #2c3e50; margin-top: 20px;">Cargando actividad...</h3>
+        
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
 
-    <!-- Tu script original que ahora podrá usar el token -->
-    <script src="app.js"></script>
+        <h4>Horarios Disponibles para Hoy:</h4>
+        <div id="lista-turnos" style="max-height: 300px; overflow-y: auto; text-align: left; padding: 5px;">
+            <!-- Los turnos se generan dinámicamente según lo que configuró el Admin -->
+        </div>
+
+        <br>
+        <button id="btn-salir" style="padding: 8px 15px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer;">Cerrar Sesión</button>
+    </div>
 </body>
 </html>
