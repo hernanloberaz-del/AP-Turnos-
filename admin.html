@@ -81,8 +81,18 @@
                         <h2>🎾 Gestión de Canchas (Pádel / Fútbol)</h2>
                         <p style="color: #aaa; font-size: 14px;">Administrá las grillas horarias, reservas de los clientes y bloqueos de canchas en tiempo real.</p>
                         <div style="background: #2a2a2a; padding: 15px; border-radius: 5px; margin-top: 15px;">
-                            <p style="margin: 0; color: #27ae60; font-weight: bold;">[Grilla de Turnos Activa]</p>
-                            <p style="margin: 5px 0 0 0; font-size: 13px; color: #ccc;">Aquí se mostrarán las canchas de césped sintético y blindex configuradas para tu complejo.</p>
+                            <p style="margin: 0 0 12px 0; color: #27ae60; font-weight: bold;">[Grilla de Turnos Activa]</p>
+                            <p style="margin: 0 0 15px 0; font-size: 13px; color: #ccc;">Seleccioná el deporte para gestionar los turnos de tu complejo:</p>
+                            
+                            <!-- Botones específicos para Fútbol y Pádel -->
+                            <div style="display: flex; gap: 15px;">
+                                <a href="deportes.html?deporte=futbol" style="background: #27ae60; color: white; padding: 12px 20px; border-radius: 5px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">
+                                    ⚽ Gestionar Fútbol
+                                </a>
+                                <a href="deportes.html?deporte=padel" style="background: #27ae60; color: white; padding: 12px 20px; border-radius: 5px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">
+                                    🎾 Gestionar Pádel
+                                </a>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -95,8 +105,13 @@
                         <h2>👨‍🏫 Panel de Profesores y Alumnos</h2>
                         <p style="color: #aaa; font-size: 14px;">Control de agendas de clases, cupos de alumnos y horarios de entrenamiento personalizados.</p>
                         <div style="background: #2a2a2a; padding: 15px; border-radius: 5px; margin-top: 15px;">
-                            <p style="margin: 0; color: #3498db; font-weight: bold;">[Agenda de Clases Activa]</p>
-                            <p style="margin: 5px 0 0 0; font-size: 13px; color: #ccc;">Gestión de turnos fijos y asistencia de alumnos.</p>
+                            <p style="margin: 0 0 12px 0; color: #3498db; font-weight: bold;">[Agenda de Clases Activa]</p>
+                            <p style="margin: 0 0 15px 0; font-size: 13px; color: #ccc;">Gestión de turnos fijos y asistencia de alumnos.</p>
+                            
+                            <!-- Botón de acceso al panel de profes -->
+                            <a href="deportes.html?modulo=profesores" style="background: #3498db; color: white; padding: 12px 20px; border-radius: 5px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">
+                                📅 Abrir Grilla de Profesores
+                            </a>
                         </div>
                     </div>
                 `;
@@ -109,8 +124,13 @@
                         <h2>🏆 Organización de Torneos</h2>
                         <p style="color: #aaa; font-size: 14px;">Generación de zonas, cuadros de eliminación directa y programación de partidos de torneo.</p>
                         <div style="background: #2a2a2a; padding: 15px; border-radius: 5px; margin-top: 15px;">
-                            <p style="margin: 0; color: #e67e22; font-weight: bold;">[Módulo de Competencia Activo]</p>
-                            <p style="margin: 5px 0 0 0; font-size: 13px; color: #ccc;">Creación de fixtures y carga de resultados por categoría.</p>
+                            <p style="margin: 0 0 12px 0; color: #e67e22; font-weight: bold;">[Módulo de Competencia Activo]</p>
+                            <p style="margin: 0 0 15px 0; font-size: 13px; color: #ccc;">Creación de fixtures y carga de resultados por categoría.</p>
+                            
+                            <!-- Botón de acceso a torneos -->
+                            <a href="deportes.html?modulo=torneos" style="background: #e67e22; color: white; padding: 12px 20px; border-radius: 5px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">
+                                🏆 Administrar Torneos
+                            </a>
                         </div>
                     </div>
                 `;
